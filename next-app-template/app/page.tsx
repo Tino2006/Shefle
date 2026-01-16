@@ -16,9 +16,9 @@ export default function Home() {
       {/* Hero section with subtle background */}
       <div className="w-full bg-white lg:bg-gray-50">
         {/* Container with max-width for desktop */}
-        <div className="mx-auto max-w-[1440px] px-4 py-8 lg:px-20 lg:pt-14 lg:pb-24">
+        <div className="mx-auto max-w-[1280px] px-4 py-8 lg:px-16 lg:pt-12 lg:pb-20">
           {/* Two-column grid on desktop, stacked on mobile */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 lg:gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 lg:gap-20 items-center">
           {/* Left Column - Content */}
           <div className="flex flex-col items-center lg:items-start">
             {/* Tag / Pill */}
@@ -34,7 +34,7 @@ export default function Home() {
 
             {/* Main Heading */}
             <motion.h1
-              className="text-3xl lg:text-5xl font-bold text-red-800 mb-4 text-center lg:text-left lg:mb-6"
+              className="text-3xl lg:text-[3.5rem] lg:leading-tight font-bold text-red-800 mb-4 text-center lg:text-left lg:mb-6"
               initial={fadeInUp.initial}
               animate={fadeInUp.animate}
               transition={{ duration: 0.8, delay: 0.4 }}
@@ -97,7 +97,7 @@ export default function Home() {
 
             {/* Primary CTA Button */}
             <motion.button
-              className="w-full max-w-md lg:max-w-none px-6 py-4 mb-4 text-white text-base font-semibold bg-red-800 rounded-xl shadow-sm transition-all duration-200 hover:bg-red-900 hover:shadow-md active:scale-[0.98]"
+              className="w-full max-w-md lg:max-w-none px-6 py-4 mb-8 lg:mb-10 text-white text-base font-semibold bg-red-800 rounded-xl shadow-sm transition-all duration-200 hover:bg-red-900 hover:shadow-md active:scale-[0.98]"
               initial={fadeInUp.initial}
               animate={fadeInUp.animate}
               transition={{ duration: 0.8, delay: 1.4 }}
@@ -181,58 +181,67 @@ export default function Home() {
 
       {/* How it works section */}
       <div className="w-full bg-white">
-        <div className="mx-auto max-w-[1440px] px-4 py-12 lg:px-20 lg:py-16">
+        <div className="mx-auto max-w-[1280px] px-4 py-12 lg:px-16 lg:py-20">
           <motion.h2
-            className="text-lg font-semibold text-gray-900 text-center mb-8 lg:mb-10"
+            className="text-2xl lg:text-3xl font-bold text-gray-900 text-center mb-10 lg:mb-14"
             initial={fadeInUp.initial}
             animate={fadeInUp.animate}
             transition={{ duration: 0.8, delay: 1.8 }}
           >
             How it works
           </motion.h2>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-16">
             {/* Step 1 */}
             <motion.div
-              className="text-center lg:text-left p-4 rounded-xl transition-colors duration-200 hover:bg-gray-50"
+              className="text-center lg:text-left p-6 lg:p-8 rounded-2xl transition-all duration-200 hover:bg-gray-50 hover:shadow-sm"
               initial={fadeInUp.initial}
               animate={fadeInUp.animate}
               transition={{ duration: 0.8, delay: 2.0 }}
-              whileHover={!prefersReducedMotion ? { y: -2 } : {}}
+              whileHover={!prefersReducedMotion ? { y: -4 } : {}}
             >
-              <div className="text-sm font-semibold text-red-800 mb-2">
-                1. Submit
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-red-100 text-red-800 font-bold text-lg mb-4">
+                1
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Submit
+              </h3>
+              <p className="text-base text-gray-600 leading-relaxed">
                 Upload your brand assets or enter your trademark. Supported formats include logos, images, and text.
               </p>
             </motion.div>
             {/* Step 2 */}
             <motion.div
-              className="text-center lg:text-left p-4 rounded-xl transition-colors duration-200 hover:bg-gray-50"
+              className="text-center lg:text-left p-6 lg:p-8 rounded-2xl transition-all duration-200 hover:bg-gray-50 hover:shadow-sm"
               initial={fadeInUp.initial}
               animate={fadeInUp.animate}
               transition={{ duration: 0.8, delay: 2.2 }}
-              whileHover={!prefersReducedMotion ? { y: -2 } : {}}
+              whileHover={!prefersReducedMotion ? { y: -4 } : {}}
             >
-              <div className="text-sm font-semibold text-red-800 mb-2">
-                2. Scan
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-red-100 text-red-800 font-bold text-lg mb-4">
+                2
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Scan
+              </h3>
+              <p className="text-base text-gray-600 leading-relaxed">
                 Shefle searches trademark registries, e-commerce platforms, and domain databases for matches and similarities.
               </p>
             </motion.div>
             {/* Step 3 */}
             <motion.div
-              className="text-center lg:text-left p-4 rounded-xl transition-colors duration-200 hover:bg-gray-50"
+              className="text-center lg:text-left p-6 lg:p-8 rounded-2xl transition-all duration-200 hover:bg-gray-50 hover:shadow-sm"
               initial={fadeInUp.initial}
               animate={fadeInUp.animate}
               transition={{ duration: 0.8, delay: 2.4 }}
-              whileHover={!prefersReducedMotion ? { y: -2 } : {}}
+              whileHover={!prefersReducedMotion ? { y: -4 } : {}}
             >
-              <div className="text-sm font-semibold text-red-800 mb-2">
-                3. Review
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-red-100 text-red-800 font-bold text-lg mb-4">
+                3
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Review
+              </h3>
+              <p className="text-base text-gray-600 leading-relaxed">
                 Receive a detailed report of potential conflicts, unauthorized use, and recommended legal actions.
               </p>
             </motion.div>
