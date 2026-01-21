@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 interface MobileDrawerProps {
@@ -150,7 +151,7 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
-            className="fixed top-0 left-0 bottom-0 w-[85%] max-w-[400px] bg-white z-50 shadow-2xl lg:hidden flex flex-col"
+            className="fixed top-0 left-0 bottom-0 h-[100vh] w-[85%] max-w-[400px] bg-white z-50 shadow-2xl lg:hidden flex flex-col"
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
@@ -161,11 +162,15 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
           >
             {/* Header with Logo and Close Button */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-red-800 rounded-md flex items-center justify-center">
-                  <span className="text-white text-base font-bold">S</span>
+              <div className="flex items-center">
+                <div className="relative w-36 h-11">
+                  <Image
+                    src="/Images/Shefle-Logo.png"
+                    alt="Shefle Logo"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
-                <span className="text-xl font-bold text-gray-900">Shefle</span>
               </div>
               <button
                 onClick={onClose}
@@ -220,11 +225,15 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
             <div className="px-6 py-6 border-t border-gray-200 bg-white">
               {/* Brand block */}
               <div className="mb-5">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-7 h-7 bg-red-800 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">S</span>
+                <div className="flex items-center mb-2">
+                  <div className="relative w-32 h-10">
+                    <Image
+                      src="/Images/Shefle-Logo.png"
+                      alt="Shefle Logo"
+                      fill
+                      className="object-contain"
+                    />
                   </div>
-                  <span className="text-base font-bold text-gray-900">Shefle</span>
                 </div>
                 <p className="text-[13px] text-gray-600 leading-relaxed">
                   Brand protection and intellectual property monitoring for businesses and creators worldwide.

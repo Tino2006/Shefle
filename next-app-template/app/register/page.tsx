@@ -1,445 +1,438 @@
 "use client";
 
 import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { UploadIcon } from "@/components/icons";
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-};
-
-interface FileUpload {
-  file: File | null;
-  name: string;
-  size: string;
-}
+import Image from "next/image";
+import Link from "next/link";
 
 export default function RegisterPage() {
-  const prefersReducedMotion = useReducedMotion();
-  const [accountType, setAccountType] = useState<"individual" | "company">("individual");
-  const [poaFile, setPoaFile] = useState<FileUpload | null>(null);
-  const [logoFile, setLogoFile] = useState<FileUpload | null>(null);
+  const [registrationType, setRegistrationType] = useState<"individual" | "company">("individual");
+  const [poaFileName, setPoaFileName] = useState<string>("");
+  const [logoFileName, setLogoFileName] = useState<string>("");
+  const [licenseFileName, setLicenseFileName] = useState<string>("");
 
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setFile: (file: FileUpload | null) => void
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-      setFile({
-        file,
-        name: file.name,
-        size: `${sizeInMB} MB`,
-      });
+  const handlePoaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPoaFileName(e.target.files[0].name);
     }
   };
 
-  const removeFile = (setFile: (file: FileUpload | null) => void) => {
-    setFile(null);
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogoFileName(e.target.files[0].name);
+    }
+  };
+
+  const handleLicenseFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLicenseFileName(e.target.files[0].name);
+    }
   };
 
   return (
-    <div className="w-full min-h-screen bg-white lg:bg-gray-50">
-      {/* Container */}
-      <div className="mx-auto max-w-[960px] px-4 py-8 lg:px-16 lg:py-16">
-        {/* Header */}
-        <motion.div
-          className="mb-8 lg:mb-12"
-          initial={fadeInUp.initial}
-          animate={fadeInUp.animate}
-          transition={{ duration: 0.6, delay: 0.1 }}
-        >
-          <h1 className="text-3xl lg:text-[2.75rem] lg:leading-tight font-bold text-gray-900 mb-3">
-            Create Account
+    <div className="w-full min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="w-full bg-white border-b border-gray-200">
+        <div className="mx-auto max-w-[1600px] px-4 lg:px-6 py-16 text-center">
+          <h1 className="text-4xl lg:text-5xl font-bold text-red-900 mb-2">
+            Register Your Brand
           </h1>
-          <p className="text-base lg:text-lg text-gray-600">
-            Register to start protecting your brand
-          </p>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Form Card */}
-        <motion.div
-          className="bg-white lg:rounded-2xl lg:shadow-sm lg:border lg:border-gray-200 lg:p-12"
-          initial={fadeInUp.initial}
-          animate={fadeInUp.animate}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <form className="space-y-10">
-            {/* Account Type Selector */}
-            <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-900">
-                Account Type <span className="text-red-600">*</span>
+      {/* Main Content */}
+      <div className="mx-auto max-w-[800px] px-4 lg:px-6 pt-12 pb-16">
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <form className="space-y-6">
+            {/* Registration Type */}
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="registrationType"
+                  value="individual"
+                  checked={registrationType === "individual"}
+                  onChange={() => setRegistrationType("individual")}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                />
+                <span className="text-sm font-medium text-gray-900">Individual</span>
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAccountType("individual")}
-                  className={`px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                    accountType === "individual"
-                      ? "border-red-800 bg-red-50 text-red-800"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Individual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountType("company")}
-                  className={`px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                    accountType === "company"
-                      ? "border-red-800 bg-red-50 text-red-800"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Company
-                </button>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="registrationType"
+                  value="company"
+                  checked={registrationType === "company"}
+                  onChange={() => setRegistrationType("company")}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                />
+                <span className="text-sm font-medium text-gray-900">Company</span>
+              </label>
             </div>
 
-            {/* Personal Details Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                {accountType === "company" ? "Company Details" : "Personal Details"}
-              </h2>
-              
-              {accountType === "company" && (
-                <div className="space-y-2">
-                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
-                    Company Name <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="companyName"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                    placeholder="Enter company name"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                    First Name <span className="text-red-600">*</span>
+            {/* First Name and Last Name (Individual) / Company Name (Company) */}
+            {registrationType === "individual" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-900 mb-2">
+                    First Name
                   </label>
                   <input
                     type="text"
                     id="firstName"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
                     placeholder="Enter first name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                    Last Name <span className="text-red-600">*</span>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-900 mb-2">
+                    Last Name
                   </label>
                   <input
                     type="text"
                     id="lastName"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
                     placeholder="Enter last name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Contact Information Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                Contact Information
-              </h2>
-              
-              <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                  placeholder="your.email@example.com"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                  Phone Number <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                  placeholder="+1 (555) 000-0000"
-                />
-              </div>
-            </div>
-
-            {/* Address Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                Address
-              </h2>
-              
-              <div className="space-y-2">
-                <label htmlFor="street" className="block text-sm font-medium text-gray-700">
-                  Street Address <span className="text-red-600">*</span>
+            ) : (
+              <div>
+                <label htmlFor="companyName" className="block text-sm font-medium text-gray-900 mb-2">
+                  Company Name
                 </label>
                 <input
                   type="text"
-                  id="street"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                  placeholder="Enter street address"
+                  id="companyName"
+                  placeholder="Enter company name"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                 />
               </div>
+            )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-                    City <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="city"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                    placeholder="Enter city"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="state" className="block text-sm font-medium text-gray-700">
-                    State / Province <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="state"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                    placeholder="Enter state"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="zip" className="block text-sm font-medium text-gray-700">
-                    ZIP / Postal Code <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="zip"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                    placeholder="Enter ZIP code"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="country" className="block text-sm font-medium text-gray-700">
-                    Country <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    id="country"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                  >
-                    <option value="">Select country</option>
-                    <option value="us">United States</option>
-                    <option value="ca">Canada</option>
-                    <option value="uk">United Kingdom</option>
-                    <option value="au">Australia</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                placeholder="Enter email address"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
             </div>
 
-            {/* Registration Details Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                Registration Details
-              </h2>
-              
-              <div className="space-y-2">
-                <label htmlFor="registrationCountry" className="block text-sm font-medium text-gray-700">
-                  Country of Registration <span className="text-red-600">*</span>
-                </label>
-                <select
-                  id="registrationCountry"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                >
-                  <option value="">Select country</option>
-                  <option value="us">United States</option>
-                  <option value="ca">Canada</option>
-                  <option value="uk">United Kingdom</option>
-                  <option value="au">Australia</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="typeOfWork" className="block text-sm font-medium text-gray-700">
-                  Type of Work <span className="text-red-600">*</span>
-                </label>
-                <select
-                  id="typeOfWork"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
-                >
-                  <option value="">Select type of work</option>
-                  <option value="product">Product/Goods</option>
-                  <option value="service">Service</option>
-                  <option value="both">Both Product & Service</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+            {/* Phone Number */}
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-900 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                placeholder="Phone number"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
             </div>
 
-            {/* Document Uploads Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                Documents
-              </h2>
-              
-              {/* POA Upload */}
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Power of Attorney (POA) <span className="text-red-600">*</span>
-                </label>
-                <p className="text-xs text-gray-500">
-                  Upload a signed POA document (PDF, max 10 MB)
-                </p>
-                
-                {!poaFile ? (
-                  <label className="flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-gray-400 transition-colors bg-gray-50">
-                    <UploadIcon size={32} />
-                    <span className="mt-3 text-sm font-medium text-gray-700">
-                      Click to upload POA
-                    </span>
-                    <span className="mt-1 text-xs text-gray-500">
-                      PDF up to 10 MB
-                    </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".pdf"
-                      onChange={(e) => handleFileUpload(e, setPoaFile)}
-                    />
-                  </label>
-                ) : (
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl bg-gray-50">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-red-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {poaFile.name}
-                        </p>
-                        <p className="text-xs text-gray-500">{poaFile.size}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(setPoaFile)}
-                      className="flex-shrink-0 ml-3 text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Wordmark/Logo Upload */}
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Wordmark / Logo <span className="text-red-600">*</span>
-                </label>
-                <p className="text-xs text-gray-500">
-                  Upload your brand logo or wordmark (PNG, JPG, SVG, max 5 MB)
-                </p>
-                
-                {!logoFile ? (
-                  <label className="flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-gray-400 transition-colors bg-gray-50">
-                    <UploadIcon size={32} />
-                    <span className="mt-3 text-sm font-medium text-gray-700">
-                      Click to upload logo
-                    </span>
-                    <span className="mt-1 text-xs text-gray-500">
-                      PNG, JPG, or SVG up to 5 MB
-                    </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".png,.jpg,.jpeg,.svg"
-                      onChange={(e) => handleFileUpload(e, setLogoFile)}
-                    />
-                  </label>
-                ) : (
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl bg-gray-50">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-red-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {logoFile.name}
-                        </p>
-                        <p className="text-xs text-gray-500">{logoFile.size}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(setLogoFile)}
-                      className="flex-shrink-0 ml-3 text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Terms and Submit */}
-            <div className="space-y-6 pt-8 border-t border-gray-100">
-              <label className="flex items-start gap-3 cursor-pointer group">
+            {/* Address Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Address
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
-                  type="checkbox"
-                  className="mt-1 w-4 h-4 border-gray-300 rounded text-red-800 focus:ring-2 focus:ring-red-800/20"
+                  type="text"
+                  placeholder="Country"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                 />
-                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
-                  I agree to the{" "}
-                  <a href="/terms" className="text-red-800 hover:underline">
-                    Terms of Service
-                  </a>{" "}
-                  and{" "}
-                  <a href="/privacy" className="text-red-800 hover:underline">
-                    Privacy Policy
-                  </a>
+                <input
+                  type="text"
+                  placeholder="City"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+                <input
+                  type="text"
+                  placeholder="Street"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+                <input
+                  type="text"
+                  placeholder="Building"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Choose the country for registration */}
+            <div>
+              <label htmlFor="registrationCountry" className="block text-sm font-medium text-gray-900 mb-2">
+                Choose the country for registration
+              </label>
+              <select
+                id="registrationCountry"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              >
+                <option value="">Country of registration</option>
+                <option value="lebanon">Lebanon</option>
+                <option value="uae">United Arab Emirates</option>
+                <option value="saudi">Saudi Arabia</option>
+                <option value="egypt">Egypt</option>
+                <option value="jordan">Jordan</option>
+              </select>
+            </div>
+
+            {/* Type of work */}
+            <div>
+              <label htmlFor="workType" className="block text-sm font-medium text-gray-900 mb-2">
+                Type of work
+              </label>
+              <input
+                type="text"
+                id="workType"
+                placeholder="What type of work do you do?"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
+            </div>
+
+            {/* Upload POA */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Upload POA (Power of Attorney) <span className="text-red-600">*</span>
+              </label>
+              {poaFileName && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm text-gray-700 flex-1">PDF - {poaFileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPoaFileName("")}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handlePoaFileChange}
+                />
+                <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Select file
                 </span>
               </label>
-
-              <motion.button
-                type="submit"
-                className="w-full px-6 py-4 text-white text-base font-semibold bg-red-800 rounded-xl hover:bg-red-900 active:bg-red-950 transition-colors shadow-sm"
-                whileHover={!prefersReducedMotion ? { y: -2 } : {}}
-                whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}}
-              >
-                Create Account
-              </motion.button>
-
-              <p className="text-sm text-center text-gray-600">
-                Already have an account?{" "}
-                <a href="/login" className="text-red-800 font-medium hover:underline">
-                  Sign in
-                </a>
-              </p>
+              <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
             </div>
+
+            {/* Upload Wordmark or Logo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Upload Wordmark or Logo (PDF) <span className="text-red-600">*</span>
+              </label>
+              {logoFileName && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm text-gray-700 flex-1">PDF - {logoFileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLogoFileName("")}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handleLogoFileChange}
+                />
+                <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Select file
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
+            </div>
+
+            {/* Upload Business License (Company only) */}
+            {registrationType === "company" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Upload Business License <span className="text-red-600">*</span>
+                </label>
+                {licenseFileName && (
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm text-gray-700 flex-1">PDF - {licenseFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => setLicenseFileName("")}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleLicenseFileChange}
+                  />
+                  <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Select file
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm"
+            >
+              Submit Application
+            </button>
           </form>
-        </motion.div>
+        </div>
       </div>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-gray-200 bg-white">
+        <div className="mx-auto max-w-[1600px] px-4 lg:px-20 py-8">
+          <div className="flex flex-col lg:flex-row items-start gap-32">
+            {/* Left Side - Brand Info */}
+            <div className="flex-shrink-0 max-w-sm">
+              <div className="mb-4">
+                <div className="relative w-44 h-14">
+                  <Image
+                    src="/Images/Shefle-Logo.png"
+                    alt="Shefle Logo"
+                    fill
+                    className="object-contain object-left"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-800 mb-5 leading-relaxed">
+                Brand protection and intellectual property monitoring for businesses and creators worldwide.
+              </p>
+              
+              {/* Social Icons */}
+              <div className="flex items-center gap-4">
+                <a 
+                  href="https://instagram.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="Instagram"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://facebook.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="Facebook"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://twitter.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="X"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://tiktok.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="TikTok"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Right Side - Company Links */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-4">Company</h3>
+              <ul className="space-y-2.5">
+                <li>
+                  <Link href="/" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Home
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/monitor" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Monitor
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/portfolio" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Portfolio
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/register" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Register
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Contact Us
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/subscriptions" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Subscription
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

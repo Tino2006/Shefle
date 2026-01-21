@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { MenuIcon } from "@/components/icons";
 import { MobileDrawer } from "@/components/mobile-drawer";
@@ -26,10 +27,10 @@ export const SimpleNavbar = () => {
   return (
     <>
       <nav className="w-full bg-white border-b border-gray-200">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-16">
-          <div className="flex items-center justify-between h-16 lg:h-20">
-            {/* Left side: hamburger (mobile) + logo + links (desktop) */}
-            <div className="flex items-center gap-4 lg:gap-10">
+        <div className="mx-auto max-w-[1600px] px-4 lg:px-6">
+          <div className="relative flex items-center justify-between h-16 lg:h-20">
+            {/* Left side: hamburger (mobile) + logo */}
+            <div className="flex items-center gap-4">
               {/* Hamburger - Mobile only */}
               <button
                 aria-label="Menu"
@@ -40,48 +41,54 @@ export const SimpleNavbar = () => {
               </button>
               
               {/* Logo */}
-              <Link href="/" className="flex items-center gap-2.5">
-                <div className="w-7 h-7 bg-red-600 rounded-sm flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">S</span>
+              <Link href="/" className="flex items-center">
+                <div className="relative w-40 h-12">
+                  <Image
+                    src="/Images/Shefle-Logo.png"
+                    alt="Shefle Logo"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
                 </div>
-                <span className="text-lg font-semibold text-gray-900">Shefle</span>
               </Link>
+            </div>
 
-              {/* Desktop Navigation Links */}
-              <div className="hidden lg:flex items-center gap-7">
-                {navLinks.map((link) => {
-                  const isActive = pathname === link.href;
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`text-[15px] font-medium transition-colors relative py-1 ${
-                        isActive
-                          ? "text-red-800"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      {link.label}
-                      {isActive && (
-                        <span className="absolute -bottom-[20px] left-0 right-0 h-0.5 bg-red-800" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
+            {/* Center: Desktop Navigation Links */}
+            <div className="hidden lg:flex items-center gap-7 absolute left-1/2 -translate-x-1/2">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`text-[15px] font-medium transition-colors relative py-1 ${
+                      isActive
+                        ? "text-red-800"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {link.label}
+                    {isActive && (
+                      <span className="absolute -bottom-[20px] left-0 right-0 h-0.5 bg-red-800" />
+                    )}
+                  </Link>
+                );
+              })}
             </div>
             
-            {/* Right side: Login + Sign up (desktop only) */}
-            <div className="hidden lg:flex items-center gap-6">
+            {/* Right side: Profile button (desktop only) */}
+            <div className="hidden lg:flex items-center gap-4">
+              <div className="w-px h-6 bg-gray-300"></div>
               <Link
-                href="/signup"
-                className="text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                href="/profile"
+                className="flex items-center gap-2 px-5 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
               >
-                Sign up
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                </svg>
+                <span className="text-[15px] font-medium">Profile</span>
               </Link>
-              <button className="px-6 py-2.5 text-[15px] font-semibold text-white bg-red-800 rounded-lg hover:bg-red-900 active:bg-red-950 transition-all duration-200 shadow-sm hover:shadow">
-                Login
-              </button>
             </div>
           </div>
         </div>

@@ -1,111 +1,97 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
-const plans = [
-  {
-    price: 40,
-    features: [
-      "50 Searches available",
-      "1 Monitor",
-      "20 Notifications"
-    ],
-    highlighted: false,
-  },
-  {
-    price: 50,
-    features: [
-      "70 Searches available",
-      "2 Monitor",
-      "40 Notifications"
-    ],
-    highlighted: true,
-  },
-  {
-    price: 60,
-    features: [
-      "Unlimited Searches Available",
-      "3 Monitor",
-      "Unlimited Notifications"
-    ],
-    highlighted: false,
-  },
-];
+export default function PaymentPage() {
+  const searchParams = useSearchParams();
+  const price = searchParams.get("price") || "50";
+  const [paymentMethod, setPaymentMethod] = useState("card");
 
-export default function SubscriptionsPage() {
   return (
     <div className="w-full min-h-screen bg-white flex flex-col">
       {/* Main Content */}
       <div className="flex-1 mx-auto max-w-[1400px] px-4 lg:px-20 py-12 lg:py-20">
         {/* Page Header */}
         <div className="text-center mb-12 lg:mb-16">
-          <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
-            Subscriptions
+          <h1 className="text-3xl lg:text-4xl font-bold text-red-900 mb-3">
+            Payment
           </h1>
           <p className="text-base lg:text-lg text-gray-600 max-w-2xl mx-auto">
             Manage your personal information, preferences, and account settings.
           </p>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
-          {plans.map((plan, index) => (
-            <div
-              key={index}
-              className={`bg-white rounded-2xl p-8 flex flex-col ${
-                plan.highlighted
-                  ? "border-2 border-red-800 shadow-lg"
-                  : "border border-gray-200 shadow-sm"
-              }`}
-            >
-              {/* Price */}
-              <div className="mb-8">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-bold text-gray-900">
-                    ${plan.price}
-                  </span>
-                  <span className="text-xl text-gray-500">/mo</span>
-                </div>
-              </div>
+        {/* Payment Form */}
+        <div className="max-w-md mx-auto bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+          {/* Pay With Section */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-900 mb-3">
+              Pay With:
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="paymentMethod"
+                value="card"
+                checked={paymentMethod === "card"}
+                onChange={() => setPaymentMethod("card")}
+                className="form-radio text-red-800 h-4 w-4"
+              />
+              <span className="text-sm font-medium text-gray-700">Card</span>
+            </label>
+          </div>
 
-              {/* Features List */}
-              <div className="space-y-4 mb-8 flex-1">
-                {plan.features.map((feature, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-800 flex items-center justify-center mt-0.5">
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[15px] text-gray-900 leading-relaxed">
-                      {feature}
-                    </span>
-                  </div>
-                ))}
-              </div>
+          {/* Card Number */}
+          <div className="mb-4">
+            <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-2">
+              Card Number
+            </label>
+            <input
+              type="text"
+              id="cardNumber"
+              placeholder="Enter card number"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-red-800 focus:border-red-800 text-sm"
+            />
+          </div>
 
-              {/* Buy Button */}
-              <Link
-                href={`/payment?price=${plan.price}`}
-                className={`w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block ${
-                  plan.highlighted
-                    ? "bg-red-800 text-white hover:bg-red-900"
-                    : "bg-gray-200 text-gray-900 hover:bg-gray-300"
-                }`}
-              >
-                Buy
-              </Link>
+          {/* Expiration Date and CVV */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700 mb-2">
+                Expiration Date
+              </label>
+              <input
+                type="text"
+                id="expirationDate"
+                placeholder="MM/YY"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-red-800 focus:border-red-800 text-sm"
+              />
             </div>
-          ))}
+            <div>
+              <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-2">
+                CVV
+              </label>
+              <input
+                type="text"
+                id="cvv"
+                placeholder="123"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-red-800 focus:border-red-800 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Pay Button */}
+          <button className="w-full px-6 py-3 bg-red-800 text-white text-base font-semibold rounded-lg hover:bg-red-900 transition-colors mb-4">
+            Pay US${price}.00
+          </button>
+
+          {/* Privacy Policy Text */}
+          <p className="text-xs text-gray-500 text-center leading-relaxed">
+            Your personal data will be used to process your order, support your experience through this website, and for other purposes described in our privacy policy.
+          </p>
         </div>
       </div>
 
