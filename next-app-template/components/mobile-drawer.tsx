@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -62,6 +63,24 @@ const socialLinks = [
 export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
   const prefersReducedMotion = useReducedMotion();
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("Logged out successfully");
+        onClose();
+        router.push("/login");
+        router.refresh();
+      }
+    } catch (error) {
+      toast.error("Failed to logout");
+    }
+  };
 
   // Close drawer on route change
   useEffect(() => {
@@ -206,18 +225,14 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
                 })}
               </ul>
 
-              {/* Auth Section */}
-              <div className="px-6 pt-8 pb-6 space-y-3.5">
-                <button className="w-full px-6 py-4 text-white text-[17px] font-semibold bg-red-800 rounded-xl hover:bg-red-900 active:bg-red-950 transition-all shadow-sm">
-                  Login
-                </button>
-                <Link
-                  href="/signup"
-                  className="block text-center text-[17px] font-medium text-red-800 hover:text-red-900 py-2 transition-colors"
-                  onClick={onClose}
+              {/* Logout Button */}
+              <div className="px-6 pt-8 pb-6">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full px-6 py-4 text-red-800 text-[17px] font-semibold bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 active:bg-red-200 transition-all"
                 >
-                  Sign up
-                </Link>
+                  Logout
+                </button>
               </div>
             </nav>
 

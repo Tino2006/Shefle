@@ -6,7 +6,6 @@ import { Providers } from "./providers";
 
 import { siteConfig } from "@/config/site";
 import { fontSans } from "@/config/fonts";
-import { SimpleNavbar } from "@/components/simple-navbar";
 
 export const metadata: Metadata = {
   title: {
@@ -35,18 +34,14 @@ export default function RootLayout({
     <html suppressHydrationWarning lang="en">
       <head />
       <body
+        suppressHydrationWarning
         className={clsx(
           "min-h-screen bg-white font-sans antialiased",
           fontSans.variable,
         )}
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
-          <div className="relative flex flex-col min-h-screen">
-            <SimpleNavbar />
-            <main className="flex-grow">
-              {children}
-            </main>
-          </div>
+          {children}
         </Providers>
       </body>
     </html>
