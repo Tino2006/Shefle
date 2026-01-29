@@ -1,0 +1,621 @@
+"use client";
+
+import { useState, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [registrationType, setRegistrationType] = useState<"individual" | "company">("individual");
+  const [poaFileName, setPoaFileName] = useState<string>("");
+  const [logoFileName, setLogoFileName] = useState<string>("");
+  const [licenseFileName, setLicenseFileName] = useState<string>("");
+  const [poaFile, setPoaFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePoaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPoaFileName(e.target.files[0].name);
+      setPoaFile(e.target.files[0]);
+    }
+  };
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogoFileName(e.target.files[0].name);
+      setLogoFile(e.target.files[0]);
+    }
+  };
+
+  const handleLicenseFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLicenseFileName(e.target.files[0].name);
+      setLicenseFile(e.target.files[0]);
+    }
+  };
+
+  const uploadFile = async (file: File, fileType: string): Promise<string> => {
+    const uploadFormData = new FormData();
+    uploadFormData.append("file", file);
+    uploadFormData.append("fileType", fileType);
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: uploadFormData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `Failed to upload ${fileType}`);
+    }
+
+    const data = await response.json();
+    return data.fileUrl;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      
+      // Get form values
+      const firstName = formData.get("firstName") as string;
+      const lastName = formData.get("lastName") as string;
+      const companyName = formData.get("companyName") as string;
+      const email = formData.get("email") as string;
+      const phone = formData.get("phone") as string;
+      const country = formData.get("country") as string;
+      const city = formData.get("city") as string;
+      const streetAddress = formData.get("streetAddress") as string;
+      const buildingNumber = formData.get("buildingNumber") as string;
+      const registrationCountry = formData.get("registrationCountry") as string;
+      const typeOfWork = formData.get("workType") as string;
+
+      // Validate required fields
+      if (!email || !phone || !country || !city || !registrationCountry) {
+        toast.error("Please fill in all required fields");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (registrationType === "individual" && (!firstName || !lastName)) {
+        toast.error("Please enter your first and last name");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (registrationType === "company" && !companyName) {
+        toast.error("Please enter your company name");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!poaFile || !logoFile) {
+        toast.error("Please upload POA and Logo files");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (registrationType === "company" && !licenseFile) {
+        toast.error("Please upload Business License");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Upload files
+      toast.loading("Uploading files...");
+      
+      const poaFileUrl = await uploadFile(poaFile, "poa");
+      const logoFileUrl = await uploadFile(logoFile, "logo");
+      let businessLicenseUrl: string | undefined;
+
+      if (registrationType === "company" && licenseFile) {
+        businessLicenseUrl = await uploadFile(licenseFile, "license");
+      }
+
+      toast.dismiss();
+      toast.loading("Submitting registration...");
+
+      // Submit brand registration
+      const response = await fetch("/api/brands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          registrationType,
+          name: registrationType === "individual" ? `${firstName} ${lastName}` : undefined,
+          companyName: registrationType === "company" ? companyName : undefined,
+          email,
+          phone,
+          country,
+          city,
+          streetAddress,
+          buildingNumber,
+          registrationCountry,
+          typeOfWork,
+          poaFileUrl,
+          logoFileUrl,
+          businessLicenseUrl,
+        }),
+      });
+
+      const data = await response.json();
+      toast.dismiss();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit registration");
+      }
+
+      toast.success("Registration submitted successfully! We'll review your application soon.");
+      
+      // Reset form
+      formRef.current?.reset();
+      setPoaFileName("");
+      setLogoFileName("");
+      setLicenseFileName("");
+      setPoaFile(null);
+      setLogoFile(null);
+      setLicenseFile(null);
+      setRegistrationType("individual");
+
+      // Redirect to profile or success page after 2 seconds
+      setTimeout(() => {
+        router.push("/profile");
+      }, 2000);
+
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.dismiss();
+      toast.error(
+        error instanceof Error ? error.message : "Failed to submit registration. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="w-full bg-white border-b border-gray-200">
+        <div className="mx-auto max-w-[1600px] px-4 lg:px-6 py-16 text-center">
+          <h1 className="text-4xl lg:text-5xl font-bold text-red-900 mb-2">
+            Register Your Brand
+          </h1>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="mx-auto max-w-[800px] px-4 lg:px-6 pt-12 pb-16">
+        <div className="bg-white rounded-xl border border-gray-200 p-8">
+          <form ref={formRef} className="space-y-6" onSubmit={handleSubmit}>
+            {/* Registration Type */}
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="registrationType"
+                  value="individual"
+                  checked={registrationType === "individual"}
+                  onChange={() => setRegistrationType("individual")}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                />
+                <span className="text-sm font-medium text-gray-900">Individual</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="registrationType"
+                  value="company"
+                  checked={registrationType === "company"}
+                  onChange={() => setRegistrationType("company")}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                />
+                <span className="text-sm font-medium text-gray-900">Company</span>
+              </label>
+            </div>
+
+            {/* First Name and Last Name (Individual) / Company Name (Company) */}
+            {registrationType === "individual" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-900 mb-2">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    required
+                    placeholder="Enter first name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-900 mb-2">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    required
+                    placeholder="Enter last name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="companyName" className="block text-sm font-medium text-gray-900 mb-2">
+                  Company Name *
+                </label>
+                <input
+                  type="text"
+                  id="companyName"
+                  name="companyName"
+                  required
+                  placeholder="Enter company name"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+              </div>
+            )}
+
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
+                Email *
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                required
+                placeholder="Enter email address"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-900 mb-2">
+                Phone Number *
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                required
+                placeholder="Phone number"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
+            </div>
+
+            {/* Address Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Address
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  name="country"
+                  required
+                  placeholder="Country *"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+                <input
+                  type="text"
+                  name="city"
+                  required
+                  placeholder="City *"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+                <input
+                  type="text"
+                  name="streetAddress"
+                  placeholder="Street"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+                <input
+                  type="text"
+                  name="buildingNumber"
+                  placeholder="Building"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Choose the country for registration */}
+            <div>
+              <label htmlFor="registrationCountry" className="block text-sm font-medium text-gray-900 mb-2">
+                Choose the country for registration *
+              </label>
+              <select
+                id="registrationCountry"
+                name="registrationCountry"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              >
+                <option value="">Country of registration</option>
+                <option value="lebanon">Lebanon</option>
+                <option value="uae">United Arab Emirates</option>
+                <option value="saudi">Saudi Arabia</option>
+                <option value="egypt">Egypt</option>
+                <option value="jordan">Jordan</option>
+              </select>
+            </div>
+
+            {/* Type of work */}
+            <div>
+              <label htmlFor="workType" className="block text-sm font-medium text-gray-900 mb-2">
+                Type of work
+              </label>
+              <input
+                type="text"
+                id="workType"
+                name="workType"
+                placeholder="What type of work do you do?"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+              />
+            </div>
+
+            {/* Upload POA */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Upload POA (Power of Attorney) <span className="text-red-600">*</span>
+              </label>
+              {poaFileName && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm text-gray-700 flex-1">PDF - {poaFileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPoaFileName("");
+                      setPoaFile(null);
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handlePoaFileChange}
+                />
+                <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Select file
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
+            </div>
+
+            {/* Upload Wordmark or Logo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Upload Wordmark or Logo <span className="text-red-600">*</span>
+              </label>
+              {logoFileName && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm text-gray-700 flex-1">{logoFileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoFileName("");
+                      setLogoFile(null);
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={handleLogoFileChange}
+                />
+                <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  Select file
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB. Accepted formats: PNG, JPG, GIF, WebP, PDF</p>
+            </div>
+
+            {/* Upload Business License (Company only) */}
+            {registrationType === "company" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Upload Business License <span className="text-red-600">*</span>
+                </label>
+                {licenseFileName && (
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm text-gray-700 flex-1">PDF - {licenseFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLicenseFileName("");
+                        setLicenseFile(null);
+                      }}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleLicenseFileChange}
+                  />
+                  <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Select file
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              {isSubmitting ? "Submitting..." : "Submit Application"}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-gray-200 bg-white">
+        <div className="mx-auto max-w-[1600px] px-4 lg:px-20 py-8">
+          <div className="flex flex-col lg:flex-row items-start gap-32">
+            {/* Left Side - Brand Info */}
+            <div className="flex-shrink-0 max-w-sm">
+              <div className="mb-4">
+                <div className="relative w-44 h-14">
+                  <Image
+                    src="/Images/Shefle-Logo.png"
+                    alt="Shefle Logo"
+                    fill
+                    className="object-contain object-left"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-800 mb-5 leading-relaxed">
+                Brand protection and intellectual property monitoring for businesses and creators worldwide.
+              </p>
+              
+              {/* Social Icons */}
+              <div className="flex items-center gap-4">
+                <a 
+                  href="https://instagram.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="Instagram"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://facebook.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="Facebook"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://twitter.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="X"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </a>
+                <a 
+                  href="https://tiktok.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-red-800 hover:text-red-900 transition-colors"
+                  aria-label="TikTok"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Right Side - Company Links */}
+            <div>
+              <h3 className="text-base font-bold text-gray-900 mb-4">Company</h3>
+              <ul className="space-y-2.5">
+                <li>
+                  <Link href="/" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Home
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/monitor" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Monitor
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/portfolio" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Portfolio
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/register" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Register
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Contact Us
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/subscriptions" className="text-sm text-gray-700 hover:text-red-800 transition-colors">
+                    Subscription
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

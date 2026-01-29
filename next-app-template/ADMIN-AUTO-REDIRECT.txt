@@ -1,0 +1,190 @@
+## Admin Auto-Redirect Feature
+
+### Overview
+Admins are now automatically redirected to the admin panel (`/admin`) when they log in or visit the regular site.
+
+### How It Works
+
+#### 1. Login Redirect (app/login/page.tsx)
+When a user logs in:
+- ✅ Admin users → Automatically redirected to `/admin`
+- ✅ Regular users → Redirected to redirect parameter or home `/`
+
+```typescript
+// After successful login
+const redirectTo = data.role === 'admin' 
+  ? '/admin'                              // Admins go to admin panel
+  : (searchParams.get('redirect') || '/'); // Users go to requested page or home
+
+router.push(redirectTo);
+```
+
+#### 2. Login API Enhancement (app/api/auth/login/route.ts)
+The login API now returns the user's role:
+
+```typescript
+// Fetch user's profile to get role
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('role')
+  .eq('id', data.user.id)
+  .single();
+
+return NextResponse.json({
+  message: 'Login successful',
+  user: data.user,
+  session: data.session,
+  role: profile?.role || 'user',  // ← Role included in response
+});
+```
+
+#### 3. Site Layout Auto-Redirect (app/(site)/layout.tsx)
+If an admin visits the regular site (home page, etc.), they're automatically redirected to the admin panel:
+
+```typescript
+export default async function SiteLayout({ children }) {
+  // Check if user is admin and redirect to admin panel
+  const profile = await getCurrentUserProfile();
+  
+  if (profile && profile.role === 'admin') {
+    redirect('/admin');  // ← Automatic redirect
+  }
+
+  return (
+    <div>
+      <SimpleNavbar />
+      <main>{children}</main>
+    </div>
+  );
+}
+```
+
+### User Experience
+
+#### Admin User Journey:
+1. **Login** → Automatically lands on `/admin` dashboard
+2. **Visit `/`** → Automatically redirected to `/admin`
+3. **Visit any `/` route** → Automatically redirected to `/admin`
+4. **Direct link to `/admin`** → Works normally (already authorized)
+
+#### Regular User Journey:
+1. **Login** → Lands on home `/` or requested page
+2. **Try to visit `/admin`** → Blocked and redirected to `/`
+3. **Browse site normally** → No redirects, works as expected
+
+### Benefits
+
+✅ **Seamless Admin Experience**
+- Admins don't need to manually navigate to `/admin` after login
+- Admins can't accidentally end up on the regular site
+
+✅ **Better Security**
+- Prevents admins from being in the wrong context
+- Clear separation between admin and user interfaces
+
+✅ **Improved UX**
+- Users land where they expect to be
+- No confusion about which interface to use
+
+### Edge Cases Handled
+
+**Case 1: Admin with redirect parameter**
+```
+URL: /login?redirect=/some-page
+Admin logs in → Goes to /admin (not /some-page)
+```
+
+**Case 2: Admin trying to access regular site**
+```
+Admin navigates to / → Automatically redirected to /admin
+Admin navigates to /portfolio → Automatically redirected to /admin
+```
+
+**Case 3: Regular user with redirect parameter**
+```
+URL: /login?redirect=/portfolio
+User logs in → Goes to /portfolio (as expected)
+```
+
+**Case 4: Admin manually types URL**
+```
+Admin types domain.com → Redirected to /admin
+Admin types domain.com/admin → Stays on /admin
+```
+
+### Testing
+
+**Test 1: Admin Login**
+1. Logout completely
+2. Go to `/login`
+3. Login with admin credentials
+4. ✅ Should land on `/admin` dashboard
+
+**Test 2: Admin Site Access**
+1. Login as admin
+2. Try to navigate to `/` (home)
+3. ✅ Should be automatically redirected to `/admin`
+
+**Test 3: Regular User Login**
+1. Logout completely
+2. Go to `/login`
+3. Login with regular user credentials
+4. ✅ Should land on `/` (home page)
+
+**Test 4: Regular User with Redirect**
+1. Logout completely
+2. Try to visit `/portfolio` (or any protected page)
+3. Should redirect to `/login?redirect=/portfolio`
+4. Login with regular user
+5. ✅ Should land on `/portfolio` (the originally requested page)
+
+### Files Modified
+
+1. **app/api/auth/login/route.ts**
+   - Added role fetching from profiles table
+   - Returns role in API response
+
+2. **app/login/page.tsx**
+   - Checks role from login response
+   - Redirects admins to `/admin`
+   - Redirects users to redirect param or home
+
+3. **app/(site)/layout.tsx**
+   - Made async to fetch user profile
+   - Auto-redirects admins to `/admin` panel
+   - Prevents admins from accessing regular site
+
+### Configuration
+
+No configuration needed! The feature works automatically based on the user's role in the database.
+
+### Disabling Auto-Redirect (Optional)
+
+If you want to disable the site layout auto-redirect (allow admins to access regular site):
+
+```typescript
+// In app/(site)/layout.tsx
+export default async function SiteLayout({ children }) {
+  // Comment out this section to disable auto-redirect
+  /*
+  const profile = await getCurrentUserProfile();
+  if (profile && profile.role === 'admin') {
+    redirect('/admin');
+  }
+  */
+
+  return (
+    <div>
+      <SimpleNavbar />
+      <main>{children}</main>
+    </div>
+  );
+}
+```
+
+### Notes
+
+- Login redirect always works (admins always land on `/admin` after login)
+- Site layout redirect is optional but recommended for better UX
+- Admin panel is still protected by middleware, server component guards, and RLS
+- Regular users cannot access `/admin` regardless of redirect behavior

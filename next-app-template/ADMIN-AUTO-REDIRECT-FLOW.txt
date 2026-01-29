@@ -1,0 +1,238 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    ADMIN AUTO-REDIRECT FLOW DIAGRAM                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          LOGIN REDIRECT FLOW                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User visits /login
+         │
+         ▼
+    Enters credentials
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  Login API (/api/auth/login)                                        ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  1. Authenticate with Supabase                                      ┃
+    ┃  2. Fetch user profile (includes role)                              ┃
+    ┃  3. Return { user, session, role }                                  ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  Check role from response                                            │
+    └─────────────────────────────────────────────────────────────────────┘
+         │
+         ├───────────────────┬───────────────────┐
+         │                   │                   │
+         ▼                   ▼                   ▼
+    role = 'admin'      role = 'user'     No redirect param
+         │                   │                   │
+         ▼                   ▼                   ▼
+    Redirect to         Redirect to         Redirect to
+      /admin            /portfolio               /
+                        (if ?redirect=
+                         /portfolio)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      SITE LAYOUT AUTO-REDIRECT                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Admin tries to access regular site (/, /portfolio, /monitor, etc.)
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  Site Layout (app/(site)/layout.tsx)                                ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  async function SiteLayout()                                        ┃
+    ┃  1. Get current user profile                                        ┃
+    ┃  2. Check if role === 'admin'                                       ┃
+    ┃  3. If admin → redirect('/admin')                                   ┃
+    ┃  4. If not admin → render site normally                             ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  Admin? → YES                                                        │
+    └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+    🔄 Automatic redirect to /admin
+         │
+         ▼
+    Admin lands on admin dashboard
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        COMPLETE USER JOURNEYS                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    👤 ADMIN USER JOURNEY
+    ═══════════════════════════════════════════════════════════════════════
+
+    Scenario 1: Login
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Visit /login                                                   │
+    │ 2. Enter admin credentials                                        │
+    │ 3. Click "Sign in"                                                │
+    │ 4. ✅ Automatically land on /admin                                │
+    └──────────────────────────────────────────────────────────────────┘
+
+    Scenario 2: Try to visit regular site
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Already logged in as admin                                     │
+    │ 2. Navigate to / (home)                                           │
+    │ 3. 🔄 Automatically redirected to /admin                          │
+    │ 4. Can only access admin panel, not regular site                  │
+    └──────────────────────────────────────────────────────────────────┘
+
+    Scenario 3: Direct admin access
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Already logged in as admin                                     │
+    │ 2. Navigate to /admin directly                                    │
+    │ 3. ✅ Access granted, stays on /admin                             │
+    └──────────────────────────────────────────────────────────────────┘
+
+
+    👥 REGULAR USER JOURNEY
+    ═══════════════════════════════════════════════════════════════════════
+
+    Scenario 1: Login
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Visit /login                                                   │
+    │ 2. Enter user credentials                                         │
+    │ 3. Click "Sign in"                                                │
+    │ 4. ✅ Land on / (home page)                                        │
+    └──────────────────────────────────────────────────────────────────┘
+
+    Scenario 2: Login with redirect parameter
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Try to visit /portfolio (protected page)                       │
+    │ 2. 🔄 Redirected to /login?redirect=/portfolio                    │
+    │ 3. Enter user credentials and login                               │
+    │ 4. ✅ Land on /portfolio (the page they wanted)                   │
+    └──────────────────────────────────────────────────────────────────┘
+
+    Scenario 3: Try to access admin panel
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Navigate to /admin                                             │
+    │ 2. ❌ Middleware blocks access                                    │
+    │ 3. 🔄 Redirected to /?error=unauthorized                          │
+    │ 4. Cannot access admin panel (by design)                          │
+    └──────────────────────────────────────────────────────────────────┘
+
+    Scenario 4: Browse site normally
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ 1. Navigate to /, /portfolio, /monitor, etc.                      │
+    │ 2. ✅ Full access to all regular site pages                       │
+    │ 3. No redirects or restrictions                                   │
+    └──────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          REDIRECT PRIORITY                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Priority order for login redirects:
+
+    1. 🔴 HIGHEST: Admin Role
+       └─> Always go to /admin (ignores redirect param)
+
+    2. 🟡 MEDIUM: Redirect Parameter
+       └─> Go to ?redirect=/some-page (if user, not admin)
+
+    3. 🟢 LOWEST: Default Home
+       └─> Go to / (if no redirect param and not admin)
+
+
+    Example scenarios:
+
+    ┌────────────────────────────────────────────────────────────────┐
+    │ Admin + redirect param                                          │
+    │ URL: /login?redirect=/portfolio                                 │
+    │ Role: admin                                                     │
+    │ Result: /admin (admin role takes priority)                      │
+    └────────────────────────────────────────────────────────────────┘
+
+    ┌────────────────────────────────────────────────────────────────┐
+    │ User + redirect param                                           │
+    │ URL: /login?redirect=/portfolio                                 │
+    │ Role: user                                                      │
+    │ Result: /portfolio (honors redirect param)                      │
+    └────────────────────────────────────────────────────────────────┘
+
+    ┌────────────────────────────────────────────────────────────────┐
+    │ User + no redirect param                                        │
+    │ URL: /login                                                     │
+    │ Role: user                                                      │
+    │ Result: / (default home page)                                   │
+    └────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CODE EXAMPLES                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    📄 Login Page (app/login/page.tsx)
+    ───────────────────────────────────────────────────────────────────
+
+    const data = await response.json();
+    
+    // Admin users always go to /admin
+    const redirectTo = data.role === 'admin' 
+      ? '/admin' 
+      : (searchParams.get('redirect') || '/');
+    
+    router.push(redirectTo);
+
+
+    📄 Login API (app/api/auth/login/route.ts)
+    ───────────────────────────────────────────────────────────────────
+
+    // After authentication
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single();
+
+    return NextResponse.json({
+      message: 'Login successful',
+      user: data.user,
+      session: data.session,
+      role: profile?.role || 'user',  // ← Include role
+    });
+
+
+    📄 Site Layout (app/(site)/layout.tsx)
+    ───────────────────────────────────────────────────────────────────
+
+    export default async function SiteLayout({ children }) {
+      // Auto-redirect admins to admin panel
+      const profile = await getCurrentUserProfile();
+      
+      if (profile && profile.role === 'admin') {
+        redirect('/admin');
+      }
+
+      return (
+        <div>
+          <SimpleNavbar />
+          <main>{children}</main>
+        </div>
+      );
+    }
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         ✨ FEATURE SUMMARY ✨                                ║
+║                                                                              ║
+║  ✅ Admins automatically redirected to /admin on login                       ║
+║  ✅ Admins cannot access regular site (auto-redirect to /admin)              ║
+║  ✅ Regular users get normal site experience                                 ║
+║  ✅ Redirect parameters honored for regular users                            ║
+║  ✅ Seamless, no configuration needed                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝

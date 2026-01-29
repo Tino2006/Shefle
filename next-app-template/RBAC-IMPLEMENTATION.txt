@@ -1,0 +1,327 @@
+# Role-Based Access Control (RBAC) Implementation Guide
+
+## Overview
+This guide explains the complete RBAC implementation for securing the `/admin` panel in the Shefle application.
+
+## 🔒 Security Layers Implemented
+
+### 1. **Database Level - Supabase RLS Policies**
+   - Users have `role` field: `'user'` | `'admin'` (default: `'user'`)
+   - RLS policies enforce data access based on role
+   - Non-admin users cannot query admin datasets even via direct API calls
+
+### 2. **Middleware Level - Route Protection**
+   - Checks authentication on all `/admin` routes
+   - Verifies admin role from database
+   - Redirects unauthorized users
+
+### 3. **Application Level - Server Component Guard**
+   - Admin layout performs server-side role check
+   - Defense-in-depth strategy
+   - Protects against middleware bypass
+
+### 4. **API Level - Admin Endpoint Protection**
+   - All `/api/admin/*` routes verify admin role
+   - Uses `verifyAdminApi()` middleware function
+   - Returns 403 Forbidden for non-admin users
+
+## 📋 Setup Instructions
+
+### Step 1: Run Database Migration
+
+1. Open your Supabase project dashboard
+2. Go to SQL Editor
+3. Create a new query
+4. Copy and paste the contents of `supabase-rbac-migration.sql`
+5. Execute the query
+
+This migration will:
+- Add `role` column to `profiles` table
+- Create `is_admin()` helper function
+- Update all RLS policies for admin access
+- Create indexes for performance
+
+### Step 2: Create Your First Admin User
+
+After running the migration, grant admin role to your account:
+
+```sql
+-- Replace with your email
+UPDATE public.profiles 
+SET role = 'admin' 
+WHERE id = (SELECT id FROM auth.users WHERE email = 'your-email@example.com');
+```
+
+Or directly by user ID:
+```sql
+UPDATE public.profiles 
+SET role = 'admin' 
+WHERE id = 'your-user-id-uuid';
+```
+
+### Step 3: Verify the Setup
+
+Run these verification queries:
+
+```sql
+-- Check if role column exists
+SELECT column_name, data_type, column_default 
+FROM information_schema.columns 
+WHERE table_name = 'profiles' AND column_name = 'role';
+
+-- View all users and their roles
+SELECT 
+  u.email,
+  p.first_name,
+  p.last_name,
+  p.role,
+  p.created_at
+FROM auth.users u
+JOIN public.profiles p ON u.id = p.id
+ORDER BY p.created_at DESC;
+
+-- Test if is_admin() function works (as authenticated user)
+SELECT public.is_admin();
+```
+
+## 🧪 Testing the RBAC System
+
+### Test 1: Admin Access
+1. Login with an admin account
+2. Navigate to `/admin`
+3. Should see admin dashboard
+4. Should be able to view/edit all data
+
+### Test 2: Regular User Blocked
+1. Login with a regular user account (role = 'user')
+2. Try to navigate to `/admin`
+3. Should be redirected to `/` with error
+4. Should see `?error=unauthorized` in URL
+
+### Test 3: Unauthenticated Access
+1. Logout completely
+2. Try to navigate to `/admin`
+3. Should be redirected to `/login?redirect=/admin`
+4. After login (as regular user), should still be blocked
+
+### Test 4: Direct API Access (RLS Test)
+Test that RLS prevents non-admin API access:
+
+```javascript
+// As regular user, try to query brands
+const { data, error } = await supabase
+  .from('brands')
+  .select('*');
+
+// Should only see own brands, not all brands
+
+// Try to query contact_submissions
+const { data, error } = await supabase
+  .from('contact_submissions')
+  .select('*');
+
+// Should fail with RLS error
+```
+
+## 🔧 Implementation Details
+
+### Files Modified/Created
+
+1. **`supabase-rbac-migration.sql`** (NEW)
+   - Complete database migration
+   - Adds role field
+   - Updates all RLS policies
+
+2. **`lib/auth.ts`** (NEW)
+   - `isAdmin()` - Check if current user is admin
+   - `getCurrentUserProfile()` - Get full profile with role
+   - `requireAdmin()` - Server-side guard function
+
+3. **`lib/api-middleware.ts`** (NEW)
+   - `verifyAdminApi()` - API route admin verification
+   - `isErrorResponse()` - Type guard helper
+   - Used in all admin API endpoints
+
+4. **`lib/types/database.ts`** (MODIFIED)
+   - Added `role` field to Profile type
+
+5. **`middleware.ts`** (MODIFIED)
+   - Added role verification for `/admin` routes
+   - Queries database to check role
+   - Redirects non-admin users to home
+
+6. **`app/(admin)/layout.tsx`** (MODIFIED)
+   - Now async server component
+   - Calls `requireAdmin()` on every admin page load
+   - Defense-in-depth protection
+
+7. **All Admin API Routes** (MODIFIED)
+   - `app/api/admin/brands/route.ts`
+   - `app/api/admin/brands/[id]/approve/route.ts`
+   - `app/api/admin/brands/[id]/reject/route.ts`
+   - `app/api/admin/stats/route.ts`
+   - `app/api/admin/contacts/route.ts`
+   - `app/api/admin/contacts/[id]/route.ts`
+   - `app/api/admin/contacts/[id]/read/route.ts`
+   - `app/api/admin/contacts/[id]/replied/route.ts`
+   - `app/api/admin/contacts/[id]/archive/route.ts`
+   - `app/api/admin/contacts/[id]/unarchive/route.ts`
+   - All now use `verifyAdminApi()` for role checking
+
+## 🛡️ Security Features
+
+### Multi-Layer Protection
+1. **Database RLS** - Prevents direct data access
+2. **Middleware** - Blocks route access
+3. **Server Component** - Validates on every render
+4. **API Middleware** - Protects all admin endpoints
+
+### Automatic Role Assignment
+- New users automatically get `role = 'user'`
+- Handled by `handle_new_user()` trigger
+- Admins must be manually promoted
+
+### API Protection Pattern
+All admin API routes follow this secure pattern:
+
+```typescript
+import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
+
+export async function GET(request: Request) {
+  // Verify admin access
+  const authResult = await verifyAdminApi();
+  if (isErrorResponse(authResult)) {
+    return authResult; // Returns 401 or 403
+  }
+
+  const { user, profile } = authResult;
+  // Continue with admin logic...
+}
+```
+
+### RLS Policy Examples
+
+**Brands Table:**
+```sql
+-- Users see own brands, admins see all
+CREATE POLICY "Users can view own brands, admins can view all" 
+  ON public.brands FOR SELECT 
+  USING (auth.uid() = user_id OR public.is_admin());
+```
+
+**Contact Submissions:**
+```sql
+-- Only admins can view
+CREATE POLICY "Admins can view all contact submissions"
+  ON public.contact_submissions FOR SELECT
+  USING (public.is_admin());
+```
+
+## 🎯 Usage in Code
+
+### Check if user is admin
+```typescript
+import { isAdmin } from '@/lib/auth';
+
+export async function SomeServerComponent() {
+  const userIsAdmin = await isAdmin();
+  
+  if (userIsAdmin) {
+    // Show admin features
+  }
+}
+```
+
+### Require admin in API routes
+```typescript
+import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  // Verify admin access
+  const authResult = await verifyAdminApi();
+  if (isErrorResponse(authResult)) {
+    return authResult; // Automatically returns 401 or 403
+  }
+
+  const { user, profile } = authResult;
+  
+  // Process admin request
+  return NextResponse.json({ success: true });
+}
+```
+
+### Get current user profile
+```typescript
+import { getCurrentUserProfile } from '@/lib/auth';
+
+export async function MyPage() {
+  const profile = await getCurrentUserProfile();
+  
+  if (!profile) {
+    redirect('/login');
+  }
+  
+  return <div>Welcome {profile.first_name}</div>;
+}
+```
+
+## 🚀 Managing Admin Users
+
+### Promote User to Admin
+```sql
+UPDATE public.profiles 
+SET role = 'admin' 
+WHERE id = 'user-uuid';
+```
+
+### Demote Admin to User
+```sql
+UPDATE public.profiles 
+SET role = 'user' 
+WHERE id = 'user-uuid';
+```
+
+### List All Admins
+```sql
+SELECT 
+  u.email,
+  p.first_name,
+  p.last_name,
+  p.created_at
+FROM auth.users u
+JOIN public.profiles p ON u.id = p.id
+WHERE p.role = 'admin'
+ORDER BY p.created_at;
+```
+
+## ⚠️ Important Notes
+
+1. **Always use server-side checks** - Never rely on client-side role checks for security
+2. **RLS is your last line of defense** - Even if middleware is bypassed, RLS protects data
+3. **Test thoroughly** - Verify both admin and non-admin user experiences
+4. **Audit admin actions** - Consider adding logging for admin activities
+5. **Environment variables** - Ensure `SUPABASE_SERVICE_ROLE_KEY` is set for admin operations
+
+## 🔍 Troubleshooting
+
+### Issue: User redirected from /admin but should have access
+- Verify role in database: `SELECT role FROM profiles WHERE id = 'user-id'`
+- Check if profile exists
+- Ensure middleware is not cached (restart dev server)
+
+### Issue: RLS denies access even for admin
+- Verify `is_admin()` function exists and works
+- Check if user is properly authenticated
+- Review RLS policy syntax
+
+### Issue: Middleware not running
+- Check `middleware.ts` matcher configuration
+- Ensure path starts with `/admin`
+- Clear Next.js cache: `rm -rf .next`
+
+## 📚 Additional Resources
+
+- [Supabase RLS Documentation](https://supabase.com/docs/guides/auth/row-level-security)
+- [Next.js Middleware Documentation](https://nextjs.org/docs/app/building-your-application/routing/middleware)
+- [Next.js Server Components](https://nextjs.org/docs/app/building-your-application/rendering/server-components)

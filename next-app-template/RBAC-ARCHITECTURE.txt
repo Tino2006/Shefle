@@ -1,0 +1,188 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    RBAC SECURITY ARCHITECTURE - SHEFLE                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              REQUEST FLOW                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User Request → /admin/brands
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 1: Next.js Middleware (middleware.ts)                        ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  ✓ Check if user is authenticated                                   ┃
+    ┃  ✓ Query database for user role                                     ┃
+    ┃  ✗ No auth → Redirect to /login?redirect=/admin                     ┃
+    ┃  ✗ Not admin → Redirect to /?error=unauthorized                     ┃
+    ┃  ✓ Is admin → Continue to Layer 2                                   ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 2: Server Component (app/(admin)/layout.tsx)                 ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  ✓ Call requireAdmin() server-side                                  ┃
+    ┃  ✓ Verify session and role on every render                          ┃
+    ┃  ✗ Not admin → Redirect to /?error=unauthorized                     ┃
+    ┃  ✓ Is admin → Render admin layout + children                        ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 3: API Endpoints (/api/admin/*)                              ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  ✓ Call verifyAdminApi() at start of handler                        ┃
+    ┃  ✗ No auth → Return 401 Unauthorized                                ┃
+    ┃  ✗ Not admin → Return 403 Forbidden                                 ┃
+    ┃  ✓ Is admin → Process request                                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 4: Supabase RLS Policies (Database)                          ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃  ✓ Check is_admin() function on every query                         ┃
+    ┃  ✓ Enforce row-level security policies                              ┃
+    ┃  ✗ Not admin → Deny access to admin data                            ┃
+    ┃  ✓ Is admin → Grant access to all data                              ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+         │
+         ▼
+    ✅ DATA RETURNED TO ADMIN
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATABASE SCHEMA                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    profiles
+    ┌────────────────────────────────────────────────────┐
+    │ id                UUID    (FK → auth.users)       │
+    │ first_name        TEXT                             │
+    │ last_name         TEXT                             │
+    │ role              TEXT    ← NEW! ('user'|'admin') │  ⚡ DEFAULT: 'user'
+    │ company_name      TEXT                             │
+    │ phone             TEXT                             │
+    │ country           TEXT                             │
+    │ created_at        TIMESTAMP                        │
+    │ updated_at        TIMESTAMP                        │
+    └────────────────────────────────────────────────────┘
+              ↓
+        INDEX: role  (for fast lookups)
+              ↓
+        RLS: Users view own, Admins view all
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     RLS POLICY EXAMPLES                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    brands (trademark registrations)
+    ┌─────────────────────────────────────────────────────┐
+    │ SELECT: auth.uid() = user_id OR is_admin()          │  ← Users see own,
+    │ INSERT: auth.uid() = user_id                        │    admins see all
+    │ UPDATE: auth.uid() = user_id OR is_admin()          │
+    │ DELETE: is_admin() ONLY                             │
+    └─────────────────────────────────────────────────────┘
+
+    contact_submissions
+    ┌─────────────────────────────────────────────────────┐
+    │ SELECT: is_admin() ONLY                             │  ← Admin-only
+    │ INSERT: true (anyone can submit)                    │    table
+    │ UPDATE: is_admin() ONLY                             │
+    │ DELETE: is_admin() ONLY                             │
+    └─────────────────────────────────────────────────────┘
+
+    subscription_plans
+    ┌─────────────────────────────────────────────────────┐
+    │ SELECT: is_active = true OR is_admin()              │  ← Users see active,
+    │ INSERT: is_admin() ONLY                             │    admins manage
+    │ UPDATE: is_admin() ONLY                             │
+    │ DELETE: is_admin() ONLY                             │
+    └─────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PROTECTED ENDPOINTS                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    🔒 ROUTES (Middleware + Server Component)
+    ├── /admin                     → Admin dashboard
+    ├── /admin/brands              → Brand management
+    ├── /admin/contacts            → Contact submissions
+    ├── /admin/users               → User management
+    └── /admin/...                 → All admin routes
+
+    🔒 API ENDPOINTS (verifyAdminApi())
+    ├── GET    /api/admin/stats
+    ├── GET    /api/admin/brands
+    ├── POST   /api/admin/brands/[id]/approve
+    ├── POST   /api/admin/brands/[id]/reject
+    ├── GET    /api/admin/contacts
+    ├── POST   /api/admin/contacts/[id]/read
+    ├── POST   /api/admin/contacts/[id]/replied
+    ├── POST   /api/admin/contacts/[id]/archive
+    ├── POST   /api/admin/contacts/[id]/unarchive
+    └── DELETE /api/admin/contacts/[id]
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      HELPER FUNCTIONS                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    📁 lib/auth.ts (Server Components)
+    ├── isAdmin()               → Returns boolean
+    ├── getCurrentUserProfile() → Returns Profile | null
+    └── requireAdmin()          → Throws if not admin
+
+    📁 lib/api-middleware.ts (API Routes)
+    ├── verifyAdminApi()        → Returns {user, profile} or ErrorResponse
+    └── isErrorResponse()       → Type guard
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ATTACK SCENARIOS PREVENTED                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ❌ Direct Database Query
+       → Blocked by RLS (is_admin() returns false)
+
+    ❌ Direct API Call (curl/Postman)
+       → Blocked by verifyAdminApi() (403 Forbidden)
+
+    ❌ URL Manipulation (/admin in address bar)
+       → Blocked by middleware (redirects to /)
+
+    ❌ Cookie/Session Manipulation
+       → Role verified from database on every request
+
+    ❌ Frontend Bypass (disable JS)
+       → Server-side checks protect all routes
+
+    ❌ SQL Injection
+       → Parameterized queries + RLS
+
+    ✅ RESULT: Multi-layer defense in depth
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SETUP STEPS                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    1. Run supabase-rbac-migration.sql in Supabase SQL Editor
+    2. Grant admin role: UPDATE profiles SET role = 'admin' WHERE id = ...
+    3. Test with admin account (should work)
+    4. Test with regular user (should be blocked)
+    5. Test direct API calls (should be blocked for non-admins)
+
+    📖 See QUICK-START-RBAC.txt for detailed instructions
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         🛡️ SECURITY GUARANTEED 🛡️                           ║
+║                                                                              ║
+║  Your /admin panel is now protected by 4 layers of security:                ║
+║  ✓ Middleware      ✓ Server Components   ✓ API Guards    ✓ RLS Policies   ║
+╚══════════════════════════════════════════════════════════════════════════════╝

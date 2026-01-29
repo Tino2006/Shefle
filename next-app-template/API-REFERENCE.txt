@@ -1,0 +1,378 @@
+# Shefle API Quick Reference
+
+## Base URL
+`http://localhost:3000` (development)
+
+---
+
+## 🔐 Authentication Endpoints
+
+### Sign Up
+```http
+POST /api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+### Login
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+### Logout
+```http
+POST /api/auth/logout
+```
+
+### Forgot Password
+```http
+POST /api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+### Reset Password
+```http
+POST /api/auth/reset-password
+Content-Type: application/json
+
+{
+  "password": "newpassword123"
+}
+```
+
+### Get Current User
+```http
+GET /api/auth/me
+```
+
+---
+
+## 👤 Profile Endpoints
+
+### Get Profile
+```http
+GET /api/profile
+```
+
+### Update Profile
+```http
+PUT /api/profile
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "companyName": "Acme Inc",
+  "phone": "+1234567890",
+  "country": "Lebanon"
+}
+```
+
+### Change Password
+```http
+PUT /api/profile/password
+Content-Type: application/json
+
+{
+  "currentPassword": "oldpass123",
+  "newPassword": "newpass123"
+}
+```
+
+### Get Notification Preferences
+```http
+GET /api/profile/notifications
+```
+
+### Update Notification Preferences
+```http
+PUT /api/profile/notifications
+Content-Type: application/json
+
+{
+  "email": true,
+  "sms": false
+}
+```
+
+---
+
+## 🏷️ Brand Registration Endpoints
+
+### Upload File
+```http
+POST /api/upload
+Content-Type: multipart/form-data
+
+file: (binary file)
+fileType: "poa" | "logo" | "license"
+```
+
+### Submit Brand Registration
+```http
+POST /api/brands
+Content-Type: application/json
+
+{
+  "registrationType": "individual" | "company",
+  "name": "John Doe",  // for individual
+  "companyName": "Acme Inc",  // for company
+  "email": "contact@example.com",
+  "phone": "+1234567890",
+  "country": "Lebanon",
+  "city": "Beirut",
+  "streetAddress": "123 Main St",
+  "buildingNumber": "Building 5",
+  "registrationCountry": "Lebanon",
+  "typeOfWork": "Technology",
+  "poaFileUrl": "https://...",
+  "logoFileUrl": "https://...",
+  "businessLicenseUrl": "https://..."  // required for company
+}
+```
+
+### Get User's Brands
+```http
+GET /api/brands
+```
+
+### Get Specific Brand
+```http
+GET /api/brands/{brandId}
+```
+
+---
+
+## 💳 Subscription & Payment Endpoints
+
+### Get Subscription Plans
+```http
+GET /api/subscriptions/plans
+```
+
+**Response:**
+```json
+{
+  "plans": [
+    {
+      "id": "uuid",
+      "name": "Basic",
+      "price": 40.00,
+      "currency": "USD",
+      "searches_limit": 50,
+      "monitors_limit": 1,
+      "notifications_limit": 20
+    },
+    ...
+  ]
+}
+```
+
+### Get Current Subscription
+```http
+GET /api/subscriptions/current
+```
+
+### Create Stripe Checkout Session
+```http
+POST /api/payments/create-checkout
+Content-Type: application/json
+
+{
+  "planId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "sessionId": "cs_...",
+  "url": "https://checkout.stripe.com/..."
+}
+```
+
+### Get Billing History
+```http
+GET /api/billing/history
+```
+
+---
+
+## 📧 Contact Endpoints
+
+### Upload Contact Attachment
+```http
+POST /api/contact/upload
+Content-Type: multipart/form-data
+
+file: (binary file)
+```
+
+### Submit Contact Form
+```http
+POST /api/contact
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "message": "I have a question...",
+  "fileUrl": "https://..."  // optional
+}
+```
+
+---
+
+## 🔔 Webhook Endpoints
+
+### Stripe Webhook
+```http
+POST /api/webhooks/stripe
+Content-Type: application/json
+Stripe-Signature: (signature header)
+
+(Stripe event payload)
+```
+
+**Handled Events:**
+- `checkout.session.completed` - Create subscription
+- `customer.subscription.updated` - Update subscription  
+- `customer.subscription.deleted` - Cancel subscription
+- `invoice.payment_succeeded` - Record successful payment
+- `invoice.payment_failed` - Mark subscription as past_due
+
+---
+
+## 📝 Response Formats
+
+### Success Response
+```json
+{
+  "message": "Operation successful",
+  "data": { ... }
+}
+```
+
+### Error Response
+```json
+{
+  "error": "Error message",
+  "details": [
+    {
+      "field": "email",
+      "message": "Invalid email format"
+    }
+  ]
+}
+```
+
+### HTTP Status Codes
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request (validation error)
+- `401` - Unauthorized (not authenticated)
+- `404` - Not Found
+- `500` - Internal Server Error
+
+---
+
+## 🧪 Testing with Stripe
+
+### Test Card Numbers
+- **Success:** `4242 4242 4242 4242`
+- **Decline:** `4000 0000 0000 0002`
+- **Requires Authentication:** `4000 0025 0000 3155`
+
+### Test Details
+- **Expiry:** Any future date (e.g., 12/34)
+- **CVC:** Any 3 digits (e.g., 123)
+- **ZIP:** Any 5 digits (e.g., 12345)
+
+---
+
+## 🔒 Authentication Notes
+
+- All protected endpoints require authentication via Supabase session cookie
+- Login/Signup automatically sets the session cookie
+- Middleware protects: `/profile`, `/register`, `/subscriptions`, `/payment`
+- Session expires after inactivity (configurable in Supabase)
+
+---
+
+## 📦 File Upload Notes
+
+**Limits:**
+- Max file size: 10MB
+- POA & Business License: PDF only
+- Logo: Images (PNG, JPG, etc.) or PDF
+
+**Storage Structure:**
+- Brand files: `brand-files/{userId}/{fileType}-{timestamp}.{ext}`
+- Contact files: `contact-attachments/contact-{timestamp}.{ext}`
+
+---
+
+## 🚀 Frontend Integration Example
+
+```typescript
+// Login Example
+const handleLogin = async (email: string, password: string) => {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data = await response.json();
+  // Redirect to profile or dashboard
+};
+
+// File Upload Example
+const handleFileUpload = async (file: File, fileType: string) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('fileType', fileType);
+  
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+  
+  const data = await response.json();
+  return data.fileUrl;
+};
+
+// Subscribe Example
+const handleSubscribe = async (planId: string) => {
+  const response = await fetch('/api/payments/create-checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ planId }),
+  });
+  
+  const { url } = await response.json();
+  window.location.href = url; // Redirect to Stripe Checkout
+};
+```
