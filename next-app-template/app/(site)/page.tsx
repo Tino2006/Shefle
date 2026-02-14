@@ -2,9 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { SearchIcon, UploadIcon } from "@/components/icons";
 
 export default function Home() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?query=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-white">
       {/* Hero Section */}
@@ -31,7 +43,7 @@ export default function Home() {
             {/* Search and Upload Section */}
             <div className="w-full max-w-4xl mb-6">
               {/* Single Row with Search and Search Button */}
-              <div className="flex items-center gap-3">
+              <form onSubmit={handleSearch} className="flex items-center gap-3">
                 {/* Search Input with Upload Button Inside */}
                 <div className="relative flex-1">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
@@ -39,21 +51,27 @@ export default function Home() {
                   </div>
                   <input
                     type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search your logo or brand name..."
                     className="w-full pl-12 pr-40 py-3.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                   />
                   {/* Upload Button Inside Input */}
-                  <button className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
                     <UploadIcon size={16} />
                     <span className="text-sm font-medium">Upload file</span>
                   </button>
                 </div>
 
                 {/* Search Button */}
-                <button className="px-10 py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm whitespace-nowrap">
+                <button
+                  type="submit"
+                  disabled={!searchQuery.trim()}
+                  className="px-10 py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
                   Search
                 </button>
-              </div>
+              </form>
             </div>
           </div>
 

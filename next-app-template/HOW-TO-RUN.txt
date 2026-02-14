@@ -1,0 +1,223 @@
+## 🚀 USPTO Trademark Search - How to Run (Step 1)
+
+### Prerequisites
+✅ Supabase project (already configured)
+✅ Node.js and pnpm installed
+✅ Next.js app running
+
+---
+
+## Step 1: Get Database Connection String
+
+1. Go to: https://supabase.com/dashboard/project/_/settings/database
+2. Find "Connection string" section
+3. Select "Transaction pooler" (port 6543)
+4. Copy the URI and replace `[YOUR-PASSWORD]` with your database password
+
+---
+
+## Step 2: Add to Environment
+
+Edit `.env.local` and replace `[YOUR-PASSWORD]`:
+
+```bash
+DATABASE_URL=postgresql://postgres.rlzeofnciqbmvluksbvl:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+```
+
+---
+
+## Step 3: Run Database Migration
+
+### Option A: Supabase SQL Editor (Recommended)
+1. Go to: https://supabase.com/dashboard/project/_/sql/new
+2. Open file: `uspto-trademark-schema.sql`
+3. Copy entire contents
+4. Paste into SQL Editor
+5. Click "Run"
+
+### Option B: Command Line
+```bash
+psql "[YOUR-DATABASE-URL]" -f uspto-trademark-schema.sql
+```
+
+---
+
+## Step 4: Install Dependencies (Already Done)
+
+```bash
+# Already installed, but if needed:
+pnpm install
+```
+
+**Note:** The project now includes `dotenv` for loading environment variables from `.env.local` when running standalone scripts like `test-uspto-setup.ts`.
+
+---
+
+## Step 5: Test the Setup
+
+```bash
+# Run verification script
+npx tsx test-uspto-setup.ts
+```
+
+Expected output:
+```
+✅ Database Connection: Successfully connected
+✅ pg_trgm Extension: installed
+✅ Tables Created: All tables exist
+✅ Search Indexes: All search indexes exist
+✅ Search Function: search_trademarks() exists
+⏭️ Trademark Data: No data yet (expected for Step 1)
+✅ Setup verification complete!
+```
+
+---
+
+## Step 6: Start Development Server
+
+```bash
+pnpm dev
+```
+
+---
+
+## Step 7: Test Search API
+
+### Test 1: Basic Search (will be empty)
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=apple"
+```
+
+Expected:
+```json
+{
+  "query": "apple",
+  "count": 0,
+  "results": []
+}
+```
+
+### Test 2: Error Handling (query too short)
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=a"
+```
+
+Expected: 400 error
+```json
+{
+  "error": "Invalid query parameters",
+  "details": [...]
+}
+```
+
+### Test 3: With Sample Data (Optional)
+
+Insert a test record:
+```sql
+-- Run in Supabase SQL Editor
+INSERT INTO public.trademarks (
+  serial_number, 
+  mark_text, 
+  status_norm, 
+  owner_name,
+  filing_date
+) VALUES (
+  '88000000', 
+  'TEST TRADEMARK', 
+  'ACTIVE', 
+  'Test Company Inc.',
+  '2020-01-01'
+);
+```
+
+Then search:
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=test"
+```
+
+Expected:
+```json
+{
+  "query": "test",
+  "count": 1,
+  "results": [
+    {
+      "office": "USPTO",
+      "serialNumber": "88000000",
+      "markText": "TEST TRADEMARK",
+      "statusNorm": "ACTIVE",
+      "ownerName": "Test Company Inc.",
+      "filingDate": "2020-01-01",
+      "riskHint": { "similarity": 0.8 }
+    }
+  ]
+}
+```
+
+---
+
+## 🎯 All API Examples
+
+### Basic search
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=apple&limit=10"
+```
+
+### Filter by status
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=nike&status=ACTIVE"
+```
+
+### Filter by NICE classes
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=tech&classes=9,42"
+```
+
+### Combined filters
+```bash
+curl "http://localhost:3000/api/trademarks/search?query=fashion&status=ACTIVE&classes=25&limit=50"
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### ❌ "DATABASE_URL is not configured"
+→ Add DATABASE_URL to .env.local and restart dev server
+
+### ❌ "Unable to connect to database"
+→ Check your password is correct in DATABASE_URL
+→ Verify using Transaction Pooler URL (port 6543)
+
+### ❌ "relation 'trademarks' does not exist"
+→ Run the migration file in Supabase SQL Editor
+
+### ⚠️ Empty results
+→ Expected! No data imported yet (Step 1 only)
+→ Insert test data (see Step 7, Test 3 above)
+
+---
+
+## 📚 Documentation Files
+
+- **THIS FILE** - Quick how-to run guide
+- `USPTO-QUICK-REFERENCE.txt` - API examples & common tasks
+- `USPTO-TRADEMARK-SETUP.txt` - Complete setup guide
+- `USPTO-IMPLEMENTATION-SUMMARY.txt` - Technical details
+- `test-uspto-setup.ts` - Automated verification script
+
+---
+
+## ✅ Done!
+
+Your USPTO trademark search engine is ready. Results will be empty until you implement Step 2 (bulk data import).
+
+**Current Status:** ✅ Step 1 Complete - Schema & Search API
+**Next Step:** Step 2 - USPTO Bulk Data Import (not yet implemented)
+
+---
+
+**Need Help?**
+1. Run: `npx tsx test-uspto-setup.ts`
+2. Check: `USPTO-TRADEMARK-SETUP.txt`
+3. Review: Terminal logs when running `pnpm dev`

@@ -29,8 +29,15 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
-  const { data: { user } } = await supabase.auth.getUser();
+  // Refresh session if expired - catch errors if Supabase is unreachable
+  let user = null;
+  try {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    user = authUser;
+  } catch (error) {
+    console.error('Auth error in middleware:', error);
+    // Continue without user if auth fails
+  }
 
   // Public routes (accessible without login)
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/about', '/pricing', '/blog', '/docs', '/contact'];
