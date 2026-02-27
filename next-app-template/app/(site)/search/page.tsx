@@ -4,23 +4,32 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
+import { generateCandidateQueries } from "@/lib/queryGeneration";
 
 interface TrademarkResult {
   serial_number: string;
+  office?: string;
   registration_number: string | null;
   mark_text: string | null;
   status_norm: string | null;
   owner_name: string | null;
   filing_date: string | null;
   classes: number[];
-  sim_trgm?: number; // Trigram score (for reference)
-  sim_final?: number; // Token-based score (for display)
-  similarity_score: number; // Legacy/fallback (uses sim_final)
+  sim_trgm?: number;
+  sim_final?: number;
+  similarity_score: number;
   risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW';
+  matched_candidate?: string;
 }
 
 interface SearchResponse {
   query: string;
+  count: number;
+  results: TrademarkResult[];
+}
+
+interface MultiSearchResponse {
+  candidates: string[];
   count: number;
   results: TrademarkResult[];
 }
@@ -33,12 +42,25 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [isMultiSearch, setIsMultiSearch] = useState(false);
 
   useEffect(() => {
     const queryParam = searchParams.get('query');
+    const mode = searchParams.get('mode');
+    const normalized = searchParams.get('normalized');
+
     if (queryParam) {
       setQuery(queryParam);
-      performSearch(queryParam);
+      
+      // Check if this is a multi-stage search from OCR
+      if (mode === 'multi' && normalized) {
+        setIsMultiSearch(true);
+        performMultiSearch(normalized);
+      } else {
+        setIsMultiSearch(false);
+        performSearch(queryParam);
+      }
     }
   }, [searchParams]);
 
@@ -62,9 +84,49 @@ export default function SearchPage() {
 
       const data: SearchResponse = await response.json();
       setResults(data.results);
+      setCandidates([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while searching');
       setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const performMultiSearch = async (normalizedText: string) => {
+    if (!normalizedText || normalizedText.trim().length < 2) {
+      setError('Please enter at least 2 characters');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSearchPerformed(true);
+
+    try {
+      const response = await fetch('/api/trademarks/multi-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          normalizedText,
+          limit: 25,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Search failed');
+      }
+
+      const data: MultiSearchResponse = await response.json();
+      setResults(data.results);
+      setCandidates(data.candidates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred while searching');
+      setResults([]);
+      setCandidates([]);
     } finally {
       setLoading(false);
     }
@@ -74,6 +136,13 @@ export default function SearchPage() {
     e.preventDefault();
     if (query.trim()) {
       router.push(`/search?query=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
+  const handleCandidateClick = (candidate: string) => {
+    const normalized = searchParams.get('normalized');
+    if (normalized) {
+      router.push(`/search?query=${encodeURIComponent(candidate)}&mode=multi&normalized=${encodeURIComponent(normalized)}`);
     }
   };
 
@@ -138,6 +207,30 @@ export default function SearchPage() {
           </div>
         )}
 
+        {/* Candidate chips for multi-search mode */}
+        {isMultiSearch && candidates.length > 0 && !loading && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-900 text-sm font-medium mb-3">
+              Search variations (click to try different options):
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {candidates.map((candidate, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleCandidateClick(candidate)}
+                  className={`px-4 py-2 border rounded-lg font-medium text-sm transition-colors ${
+                    searchParams.get('query') === candidate
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-900 border-blue-300 hover:bg-blue-100 hover:border-blue-400'
+                  }`}
+                >
+                  {candidate}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!loading && searchPerformed && !error && (
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900">
@@ -146,6 +239,7 @@ export default function SearchPage() {
             {results.length > 0 && (
               <p className="text-gray-600 mt-1">
                 Showing results for "{searchParams.get('query')}"
+                {isMultiSearch && " (multi-stage search)"}
               </p>
             )}
           </div>
@@ -166,7 +260,7 @@ export default function SearchPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="text-xl font-bold text-gray-900">
                         {result.mark_text || 'N/A'}
                       </h3>
@@ -176,6 +270,11 @@ export default function SearchPage() {
                       <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(result.status_norm)}`}>
                         {result.status_norm || 'Unknown'}
                       </span>
+                      {isMultiSearch && result.matched_candidate && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium border border-purple-200">
+                          matched: {result.matched_candidate}
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm mt-4">

@@ -3,17 +3,201 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SearchIcon, UploadIcon } from "@/components/icons";
+import { createWorker } from "tesseract.js";
+import { normalizeText } from "@/lib/normalizeText";
+import { normalizeBrandText } from "@/lib/normalizeBrandText";
+import { generateCandidateQueries } from "@/lib/queryGeneration";
+
+type OCRResult = {
+  text: string;
+  text_raw: string;
+  text_normalized: string;
+  confidence: number;
+  normalized_text: string;
+  candidates: string[];
+  preprocessing?: 'normal' | 'inverted';
+};
 
 export default function Home() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+  const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/search?query=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setOcrError(`Invalid file type. Please upload PNG, JPG, or WEBP images.`);
+      return;
+    }
+
+    // Validate file size (8MB max)
+    const maxSize = 8 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setOcrError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 8MB.`);
+      return;
+    }
+
+    setIsProcessingOCR(true);
+    setOcrError(null);
+    setOcrResult(null);
+
+    try {
+      console.log(`[OCR] Processing ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)}KB)`);
+      const startTime = Date.now();
+
+      // Step 1: Send to preprocessing API (server-side with sharp)
+      const formData = new FormData();
+      formData.append('image', file);
+
+      console.log('[OCR] Step 1: Preprocessing image...');
+      const preprocessResponse = await fetch('/api/preprocess-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!preprocessResponse.ok) {
+        const errorData = await preprocessResponse.json();
+        throw new Error(errorData.message || errorData.error || 'Image preprocessing failed');
+      }
+
+      const { normal, inverted } = await preprocessResponse.json();
+      console.log('[OCR] Step 2: Running quad-pass OCR (2 preprocessing × 2 PSM modes)...');
+
+      // Step 2: Run quad-pass OCR on client-side (Tesseract works reliably here)
+      const worker = await createWorker("eng", 1, {
+        workerPath: "/tesseract/worker.min.js",
+        corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/tesseract-core-lstm.wasm.js",
+        langPath: "https://tessdata.projectnaptha.com/4.0.0",
+      });
+
+      // Tesseract config optimized for logos
+      const tesseractConfig = {
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        preserve_interword_spaces: '1',
+      } as Record<string, string>;
+
+      // Run 4 passes: 2 preprocessing variants × 2 PSM modes
+      // PSM 7 = single text line, PSM 8 = single word
+      const [
+        normalPSM7,
+        normalPSM8,
+        invertedPSM7,
+        invertedPSM8,
+      ] = await Promise.all([
+        worker.recognize(normal, { ...tesseractConfig, tessedit_pageseg_mode: '7' } as any),
+        worker.recognize(normal, { ...tesseractConfig, tessedit_pageseg_mode: '8' } as any),
+        worker.recognize(inverted, { ...tesseractConfig, tessedit_pageseg_mode: '7' } as any),
+        worker.recognize(inverted, { ...tesseractConfig, tessedit_pageseg_mode: '8' } as any),
+      ]);
+
+      await worker.terminate();
+
+      // Collect all results
+      const allPasses = [
+        { text: normalPSM7.data.text, confidence: normalPSM7.data.confidence, preprocessing: 'normal', psm: 7 },
+        { text: normalPSM8.data.text, confidence: normalPSM8.data.confidence, preprocessing: 'normal', psm: 8 },
+        { text: invertedPSM7.data.text, confidence: invertedPSM7.data.confidence, preprocessing: 'inverted', psm: 7 },
+        { text: invertedPSM8.data.text, confidence: invertedPSM8.data.confidence, preprocessing: 'inverted', psm: 8 },
+      ];
+
+      allPasses.forEach((pass, idx) => {
+        console.log(`[OCR] Pass ${idx + 1} (${pass.preprocessing}/PSM${pass.psm}): confidence=${pass.confidence.toFixed(2)}%, text="${pass.text.substring(0, 50)}"`);
+      });
+
+      // Pick the best result based on confidence + text length
+      let bestPass = allPasses[0];
+      for (const pass of allPasses) {
+        const currentScore = pass.confidence + (pass.text.length * 0.5);
+        const bestScore = bestPass.confidence + (bestPass.text.length * 0.5);
+        
+        if (currentScore > bestScore) {
+          bestPass = pass;
+        }
+      }
+
+      console.log(`[OCR] Best result: ${bestPass.preprocessing}/PSM${bestPass.psm} (confidence=${bestPass.confidence.toFixed(2)}%, length=${bestPass.text.length})`);
+
+      const finalBestPass: { text: string; confidence: number; preprocessing: 'normal' | 'inverted' } = {
+        text: bestPass.text,
+        confidence: bestPass.confidence,
+        preprocessing: bestPass.preprocessing as 'normal' | 'inverted',
+      };
+
+      // Apply brand-specific normalization
+      const brandNormalized = normalizeBrandText(finalBestPass.text);
+      console.log(`[OCR] Brand normalization: raw="${brandNormalized.raw}" -> normalized="${brandNormalized.normalized}"`);
+
+      // Generate search-friendly normalized text and candidates
+      const searchNormalized = normalizeText(brandNormalized.normalized);
+      const candidates = generateCandidateQueries(searchNormalized);
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[OCR] Success: confidence=${finalBestPass.confidence.toFixed(2)}%, ` +
+          `preprocessing=${finalBestPass.preprocessing}, ` +
+          `brand_normalized="${brandNormalized.normalized}", ` +
+          `search_normalized="${searchNormalized}", ` +
+          `candidates=${JSON.stringify(candidates)}, ` +
+          `duration=${duration}ms`
+      );
+
+      const result: OCRResult = {
+        text: finalBestPass.text,
+        text_raw: brandNormalized.raw,
+        text_normalized: brandNormalized.normalized,
+        confidence: finalBestPass.confidence / 100,
+        normalized_text: searchNormalized,
+        candidates,
+        preprocessing: finalBestPass.preprocessing,
+      };
+
+      setOcrResult(result);
+
+      // Only auto-redirect if confidence is very high (>= 80%) and text is good
+      if (result.normalized_text.length >= 2 && result.confidence >= 0.8 && result.candidates.length > 0) {
+        router.push(`/search?query=${encodeURIComponent(result.candidates[0])}&mode=multi&normalized=${encodeURIComponent(result.normalized_text)}`);
+      }
+    } catch (error) {
+      console.error("[OCR] Error:", error);
+      setOcrError(error instanceof Error ? error.message : "Failed to process image");
+    } finally {
+      setIsProcessingOCR(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleSearchAnyway = () => {
+    if (ocrResult?.normalized_text) {
+      router.push(`/search?query=${encodeURIComponent(ocrResult.normalized_text)}&mode=multi&normalized=${encodeURIComponent(ocrResult.normalized_text)}`);
+    }
+  };
+
+  const handleCandidateClick = (candidate: string) => {
+    if (ocrResult?.normalized_text) {
+      router.push(`/search?query=${encodeURIComponent(candidate)}&mode=multi&normalized=${encodeURIComponent(ocrResult.normalized_text)}`);
     }
   };
 
@@ -55,23 +239,144 @@ export default function Home() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search your logo or brand name..."
                     className="w-full pl-12 pr-40 py-3.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                    disabled={isProcessingOCR}
                   />
                   {/* Upload Button Inside Input */}
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <button 
+                    type="button" 
+                    onClick={handleUploadClick}
+                    disabled={isProcessingOCR}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <UploadIcon size={16} />
-                    <span className="text-sm font-medium">Upload file</span>
+                    <span className="text-sm font-medium">
+                      {isProcessingOCR ? "Processing..." : "Upload file"}
+                    </span>
                   </button>
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
                 </div>
 
                 {/* Search Button */}
                 <button
                   type="submit"
-                  disabled={!searchQuery.trim()}
+                  disabled={!searchQuery.trim() || isProcessingOCR}
                   className="px-10 py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   Search
                 </button>
               </form>
+
+              {/* OCR Processing Status */}
+              {isProcessingOCR && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    <span className="text-blue-800 font-medium">Reading text from logo…</span>
+                  </div>
+                </div>
+              )}
+
+              {/* OCR Error */}
+              {ocrError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 font-medium">Error: {ocrError}</p>
+                  <p className="text-red-600 text-sm mt-1">Please try a different image or search manually.</p>
+                </div>
+              )}
+
+              {/* OCR Result - No readable text */}
+              {ocrResult && !isProcessingOCR && (
+                ocrResult.normalized_text.length < 2 || ocrResult.confidence < 0.4
+              ) && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-900 font-semibold mb-2">
+                    No readable text found
+                  </p>
+                  <p className="text-red-700 text-sm mb-1">
+                    {ocrResult.text ? `Extracted: "${ocrResult.text}"` : 'No text detected'}
+                  </p>
+                  <p className="text-red-600 text-sm mb-4">
+                    Confidence: {(ocrResult.confidence * 100).toFixed(0)}%
+                    {ocrResult.confidence < 0.4 && " (too low)"}
+                    {ocrResult.normalized_text.length < 2 && " (text too short)"}
+                  </p>
+                  <p className="text-red-800 text-sm font-medium">
+                    Please type your brand name manually in the search box above.
+                  </p>
+                </div>
+              )}
+
+              {/* OCR Result - Good confidence, show candidates */}
+              {ocrResult && !isProcessingOCR && 
+                ocrResult.normalized_text.length >= 2 && 
+                ocrResult.confidence >= 0.4 && 
+                ocrResult.confidence < 0.8 && (
+                <div className="mt-4 p-5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="mb-4">
+                    <p className="text-blue-900 font-semibold mb-1">
+                      Text extracted from logo
+                    </p>
+                    
+                    {/* Show both raw and normalized if different */}
+                    {ocrResult.text_raw && ocrResult.text_normalized && ocrResult.text_raw !== ocrResult.text_normalized ? (
+                      <>
+                        <p className="text-blue-700 text-sm mb-1">
+                          Raw: &quot;{ocrResult.text_raw}&quot;
+                        </p>
+                        <p className="text-blue-800 text-lg font-bold mb-1">
+                          Normalized: &quot;{ocrResult.text_normalized}&quot;
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-blue-800 text-lg font-medium mb-1">
+                        &quot;{ocrResult.text_normalized || ocrResult.text}&quot;
+                      </p>
+                    )}
+                    
+                    <div className="flex items-center gap-3 text-sm flex-wrap">
+                      <span className="text-blue-600">
+                        Confidence: {(ocrResult.confidence * 100).toFixed(0)}%
+                      </span>
+                      {ocrResult.preprocessing && (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                          {ocrResult.preprocessing === 'inverted' ? 'Inverted colors' : 'Normal'}
+                        </span>
+                      )}
+                      {ocrResult.text_raw && ocrResult.text_normalized && ocrResult.text_raw !== ocrResult.text_normalized && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                          Auto-corrected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {ocrResult.candidates && ocrResult.candidates.length > 0 && (
+                    <div>
+                      <p className="text-blue-900 text-sm font-medium mb-2">
+                        Click a search option below:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {ocrResult.candidates.map((candidate, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleCandidateClick(candidate)}
+                            className="px-4 py-2 bg-white border border-blue-300 text-blue-900 rounded-lg hover:bg-blue-100 hover:border-blue-400 transition-colors font-medium text-sm"
+                          >
+                            {candidate}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

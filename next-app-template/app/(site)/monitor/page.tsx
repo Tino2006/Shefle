@@ -412,9 +412,10 @@ export default function MonitorPage() {
               ) : (
                 <div className="space-y-4 max-h-[800px] overflow-y-auto">
                   {hits.map((hit) => (
-                    <div
+                    <Link
                       key={hit.id}
-                      className="bg-white border border-gray-200 rounded-lg p-5"
+                      href={`/monitor/alerts/${hit.id}`}
+                      className="block bg-white border border-gray-200 rounded-lg p-5 hover:shadow-lg hover:border-red-200 transition-all cursor-pointer"
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1">
@@ -480,31 +481,42 @@ export default function MonitorPage() {
                             <textarea
                               value={reviewNote}
                               onChange={(e) => setReviewNote(e.target.value)}
+                              onClick={(e) => e.preventDefault()}
                               placeholder="Add a note (optional)..."
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-800/20"
                               rows={2}
                             />
                             <div className="flex gap-2">
                               <button
-                                onClick={() => handleReviewAction(hit.id, 'REVIEWED')}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleReviewAction(hit.id, 'REVIEWED');
+                                }}
                                 className="flex-1 px-3 py-2 text-xs font-semibold text-green-800 bg-green-50 border border-green-200 rounded hover:bg-green-100 transition-colors"
                               >
                                 ✓ Reviewed
                               </button>
                               <button
-                                onClick={() => handleReviewAction(hit.id, 'DISMISSED')}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleReviewAction(hit.id, 'DISMISSED');
+                                }}
                                 className="flex-1 px-3 py-2 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
                               >
                                 ✗ Dismiss
                               </button>
                               <button
-                                onClick={() => handleReviewAction(hit.id, 'ESCALATED')}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleReviewAction(hit.id, 'ESCALATED');
+                                }}
                                 className="flex-1 px-3 py-2 text-xs font-semibold text-purple-800 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors"
                               >
                                 ⚠ Escalate
                               </button>
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.preventDefault();
                                   setReviewingHitId(null);
                                   setReviewNote("");
                                 }}
@@ -517,7 +529,10 @@ export default function MonitorPage() {
                         ) : hit.review_status === 'NEW' ? (
                           <div className="mt-3">
                             <button
-                              onClick={() => setReviewingHitId(hit.id)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setReviewingHitId(hit.id);
+                              }}
                               className="w-full px-4 py-2 text-sm font-semibold text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
                             >
                               Review This Alert
@@ -526,7 +541,8 @@ export default function MonitorPage() {
                         ) : (
                           <div className="mt-3">
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.preventDefault();
                                 setReviewingHitId(hit.id);
                                 setReviewNote(hit.note || "");
                               }}
@@ -537,7 +553,7 @@ export default function MonitorPage() {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
