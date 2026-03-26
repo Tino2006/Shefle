@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-01-28.clover',
+  apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
 });
 
 const createCheckoutSchema = z.object({
