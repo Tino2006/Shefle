@@ -3,9 +3,17 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { z } from 'zod';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
-});
+function getStripeClient(): Stripe {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+
+  return new Stripe(stripeSecretKey, {
+    apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
+  });
+}
 
 const createCheckoutSchema = z.object({
   planId: z.string().uuid(),
@@ -13,6 +21,7 @@ const createCheckoutSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const stripe = getStripeClient();
     const body = await request.json();
     const { planId } = createCheckoutSchema.parse(body);
 
@@ -111,6 +120,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Invalid input', details: error.issues },
         { status: 400 }
+      );
+    }
+
+    if (error instanceof Error && error.message.includes('STRIPE_SECRET_KEY')) {
+      return NextResponse.json(
+        { error: 'Stripe configuration error' },
+        { status: 500 }
       );
     }
 

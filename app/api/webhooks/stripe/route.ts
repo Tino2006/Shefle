@@ -2,12 +2,21 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
-});
+function getStripeClient(): Stripe {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+
+  return new Stripe(stripeSecretKey, {
+    apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
+  });
+}
 
 export async function POST(request: Request) {
   try {
+    const stripe = getStripeClient();
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');
 
