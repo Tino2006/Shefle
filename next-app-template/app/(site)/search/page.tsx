@@ -34,12 +34,22 @@ interface MultiSearchResponse {
   results: TrademarkResult[];
 }
 
+interface VisualMatch {
+  url: string;
+  pageUrl?: string;
+  entityLabel?: string;
+  source: 'fullMatch' | 'partialMatch' | 'visuallySimilar';
+  similarityScore: number;
+}
+
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [query, setQuery] = useState(searchParams.get('query') || '');
   const [results, setResults] = useState<TrademarkResult[]>([]);
+  const [visualMatches, setVisualMatches] = useState<VisualMatch[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingVisual, setLoadingVisual] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [candidates, setCandidates] = useState<string[]>([]);
@@ -49,6 +59,7 @@ export default function SearchPage() {
     const queryParam = searchParams.get('query');
     const mode = searchParams.get('mode');
     const normalized = searchParams.get('normalized');
+    const hasImageData = searchParams.get('hasImageData') === 'true';
 
     if (queryParam) {
       setQuery(queryParam);
@@ -60,6 +71,20 @@ export default function SearchPage() {
       } else {
         setIsMultiSearch(false);
         performSearch(queryParam);
+      }
+
+      // If we have image data from Vision upload, also run visual similarity
+      if (hasImageData) {
+        const imageData = sessionStorage.getItem('uploadedImageData');
+        const visionData = sessionStorage.getItem('visionData');
+        
+        if (imageData && visionData) {
+          performVisualSimilarity(imageData, visionData);
+          
+          // Clean up after reading (optional - keeps data for back/forward navigation)
+          // sessionStorage.removeItem('uploadedImageData');
+          // sessionStorage.removeItem('visionData');
+        }
       }
     }
   }, [searchParams]);
@@ -132,6 +157,74 @@ export default function SearchPage() {
     }
   };
 
+  const performVisualSimilarity = async (imageBase64: string, visionDataJson: string) => {
+    setLoadingVisual(true);
+
+    try {
+      const visionData = JSON.parse(visionDataJson);
+      
+      // Build candidate list from Vision image matches
+      interface ImageMatch {
+        url: string;
+        pageUrl?: string;
+      }
+      
+      const candidates: Array<{
+        url: string;
+        pageUrl?: string;
+        entityLabel?: string;
+        source: 'fullMatch' | 'partialMatch' | 'visuallySimilar';
+      }> = [];
+
+      visionData.imageMatches.fullMatching?.forEach((img: ImageMatch) => {
+        candidates.push({ ...img, source: 'fullMatch' });
+      });
+
+      visionData.imageMatches.partialMatching?.forEach((img: ImageMatch) => {
+        candidates.push({ ...img, source: 'partialMatch' });
+      });
+
+      visionData.imageMatches.visuallySimilar?.forEach((img: ImageMatch) => {
+        candidates.push({ ...img, source: 'visuallySimilar' });
+      });
+
+      if (candidates.length === 0) {
+        console.log('[Visual Similarity] No candidate images from Vision');
+        setLoadingVisual(false);
+        return;
+      }
+
+      console.log(`[Visual Similarity] Processing ${candidates.length} candidate images`);
+
+      const response = await fetch('/api/logo-similarity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64,
+          candidates: candidates.slice(0, 20),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Visual similarity failed');
+      }
+
+      const data = await response.json();
+      console.log(`[Visual Similarity] Found ${data.count} visual matches`);
+      
+      // Filter to only show matches with similarity >= 0.6 (60%)
+      const filteredMatches = data.results.filter((m: VisualMatch) => m.similarityScore >= 0.6);
+      setVisualMatches(filteredMatches);
+    } catch (err) {
+      console.error('[Visual Similarity] Error:', err);
+    } finally {
+      setLoadingVisual(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
@@ -163,6 +256,13 @@ export default function SearchPage() {
       case 'DEAD': return 'text-gray-700 bg-gray-50';
       default: return 'text-gray-700 bg-gray-50';
     }
+  };
+
+  const getSimilarityColor = (score: number) => {
+    if (score >= 0.9) return 'text-red-600';
+    if (score >= 0.8) return 'text-orange-600';
+    if (score >= 0.7) return 'text-yellow-600';
+    return 'text-blue-600';
   };
 
   return (
@@ -234,9 +334,11 @@ export default function SearchPage() {
         {!loading && searchPerformed && !error && (
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900">
-              {results.length > 0 ? `Found ${results.length} similar trademarks` : 'No results found'}
+              {results.length > 0 || visualMatches.length > 0
+                ? `Search Results`
+                : 'No results found'}
             </h2>
-            {results.length > 0 && (
+            {(results.length > 0 || visualMatches.length > 0) && (
               <p className="text-gray-600 mt-1">
                 Showing results for "{searchParams.get('query')}"
                 {isMultiSearch && " (multi-stage search)"}
@@ -251,94 +353,183 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!loading && results.length > 0 && (
-          <div className="space-y-4">
-            {results.map((result, index) => (
-              <div
-                key={`${result.serial_number}-${index}`}
-                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h3 className="text-xl font-bold text-gray-900">
-                        {result.mark_text || 'N/A'}
-                      </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(result.risk_level)}`}>
-                        {result.risk_level.replace('_', ' ')}
-                      </span>
-                      <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(result.status_norm)}`}>
-                        {result.status_norm || 'Unknown'}
-                      </span>
-                      {isMultiSearch && result.matched_candidate && (
-                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium border border-purple-200">
-                          matched: {result.matched_candidate}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-sm mt-4">
-                      <div>
-                        <span className="text-gray-500">Serial Number:</span>
-                        <span className="ml-2 font-medium text-gray-900">{result.serial_number}</span>
-                      </div>
-                      {result.registration_number && (
-                        <div>
-                          <span className="text-gray-500">Registration:</span>
-                          <span className="ml-2 font-medium text-gray-900">{result.registration_number}</span>
-                        </div>
-                      )}
-                      {result.owner_name && (
-                        <div>
-                          <span className="text-gray-500">Owner:</span>
-                          <span className="ml-2 font-medium text-gray-900">{result.owner_name}</span>
-                        </div>
-                      )}
-                      {result.filing_date && (
-                        <div>
-                          <span className="text-gray-500">Filing Date:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {new Date(result.filing_date).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {result.classes.length > 0 && (
-                      <div className="mt-4">
-                        <span className="text-gray-500 text-sm">Classes:</span>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {result.classes.map((cls) => (
-                            <span
-                              key={cls}
-                              className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
-                            >
-                              {cls}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500">Similarity</div>
-                    <div className="text-3xl font-bold text-red-800">
-                      {(result.similarity_score * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
+        {/* Visual Similarity Matches Section */}
+        {(visualMatches.length > 0 || loadingVisual) && (
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                Visual Matches {visualMatches.length > 0 && `(${visualMatches.length})`}
+              </h3>
+              {loadingVisual && (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              )}
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Images found on the web that are visually similar to your uploaded logo (ranked by CLIP embedding similarity)
+            </p>
+            
+            {loadingVisual && visualMatches.length === 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                <p className="text-blue-800 font-medium">Analyzing visual similarity...</p>
+                <p className="text-blue-600 text-sm mt-1">This may take 10-30 seconds</p>
               </div>
-            ))}
+            )}
+            
+            {visualMatches.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visualMatches.slice(0, 12).map((match, index) => (
+                  <div
+                    key={index}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-4 hover:shadow-lg transition-all hover:border-blue-300"
+                  >
+                    <div className="relative w-full aspect-square mb-3 bg-gray-100 rounded overflow-hidden">
+                      <img
+                        src={match.url}
+                        alt={match.entityLabel || 'Similar logo'}
+                        className="w-full h-full object-contain p-2"
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400 text-sm">Image unavailable</div>';
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-500 uppercase">
+                          {match.source === 'fullMatch' && 'Full Match'}
+                          {match.source === 'partialMatch' && 'Partial'}
+                          {match.source === 'visuallySimilar' && 'Similar'}
+                        </span>
+                        <span className={`text-xl font-bold ${getSimilarityColor(match.similarityScore)}`}>
+                          {(match.similarityScore * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      {match.entityLabel && (
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {match.entityLabel}
+                        </p>
+                      )}
+                      {match.pageUrl && (
+                        <a
+                          href={match.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 truncate block hover:underline"
+                        >
+                          View source →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {!loading && searchPerformed && results.length === 0 && !error && (
+        {/* Trademark Database Matches Section */}
+        {!loading && results.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              Trademark Database Matches ({results.length})
+            </h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Registered trademarks with similar text/names (ranked by text similarity)
+            </p>
+            <div className="space-y-4">
+              {results.map((result, index) => (
+                <div
+                  key={`${result.serial_number}-${index}`}
+                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h3 className="text-xl font-bold text-gray-900">
+                          {result.mark_text || 'N/A'}
+                        </h3>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(result.risk_level)}`}>
+                          {result.risk_level.replace('_', ' ')}
+                        </span>
+                        <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(result.status_norm)}`}>
+                          {result.status_norm || 'Unknown'}
+                        </span>
+                        {isMultiSearch && result.matched_candidate && (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium border border-purple-200">
+                            matched: {result.matched_candidate}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+                        <div>
+                          <span className="text-gray-500">Serial Number:</span>
+                          <span className="ml-2 font-medium text-gray-900">{result.serial_number}</span>
+                        </div>
+                        {result.registration_number && (
+                          <div>
+                            <span className="text-gray-500">Registration:</span>
+                            <span className="ml-2 font-medium text-gray-900">{result.registration_number}</span>
+                          </div>
+                        )}
+                        {result.owner_name && (
+                          <div>
+                            <span className="text-gray-500">Owner:</span>
+                            <span className="ml-2 font-medium text-gray-900">{result.owner_name}</span>
+                          </div>
+                        )}
+                        {result.filing_date && (
+                          <div>
+                            <span className="text-gray-500">Filing Date:</span>
+                            <span className="ml-2 font-medium text-gray-900">
+                              {new Date(result.filing_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {result.classes.length > 0 && (
+                        <div className="mt-4">
+                          <span className="text-gray-500 text-sm">Classes:</span>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {result.classes.map((cls) => (
+                              <span
+                                key={cls}
+                                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
+                              >
+                                {cls}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500">Text Match</div>
+                      <div className="text-3xl font-bold text-red-800">
+                        {(result.similarity_score * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loading && !loadingVisual && searchPerformed && results.length === 0 && visualMatches.length === 0 && !error && (
           <div className="text-center py-20">
             <div className="text-gray-400 mb-4">
               <SearchIcon size={64} />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No trademarks found</h3>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No matches found</h3>
             <p className="text-gray-600">
               Try adjusting your search query or using different keywords
             </p>

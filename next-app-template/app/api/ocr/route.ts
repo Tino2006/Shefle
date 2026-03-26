@@ -1,55 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Tesseract from 'tesseract.js';
 import { normalizeText } from '@/lib/normalizeText';
-import { generateCandidateQueries } from '@/lib/queryGeneration';
-import { createPreprocessingVariants } from '@/lib/imagePreprocessing';
+import { detectImageEntities } from '@/lib/googleVision';
 
 /**
- * OCR API with Image Preprocessing
+ * OCR API with Google Vision Web Detection
  * POST /api/ocr
- * 
+ *
  * Accepts multipart/form-data with 'image' field
- * 
- * Features:
- * - Image preprocessing with sharp (rotate, resize, grayscale, normalize, threshold)
- * - Dual-pass OCR: normal + inverted (for white-on-dark logos)
- * - Returns best result based on confidence + text length
- * - Generates candidate search queries
+ *
+ * Flow:
+ * 1. Validate image (type, size)
+ * 2. Call Google Vision Web Detection
+ * 3. Extract brand candidates from bestGuessLabels + webEntities
+ * 4. Return { query, source: "vision", candidates, rawLabel }
+ *
+ * Note: Tesseract.js server-side OCR removed due to Node.js worker path issues.
+ * Client-side OCR still available via /api/preprocess-image if needed.
  */
 
-interface OCRResult {
-  text: string;
-  confidence: number;
-  normalized_text: string;
+interface ImageMatch {
+  url: string;
+  pageUrl?: string;
+}
+
+interface VisionResult {
+  query: string;
+  source: 'vision';
   candidates: string[];
-  preprocessing: 'normal' | 'inverted';
-}
-
-interface OCRPassResult {
-  text: string;
-  confidence: number;
-  preprocessing: 'normal' | 'inverted';
-}
-
-async function runOCRPass(imageBuffer: Buffer, preprocessing: 'normal' | 'inverted'): Promise<OCRPassResult> {
-  // For Next.js API routes, we need to configure Tesseract to use browser-compatible paths
-  // even though we're on the server, because Next.js bundles it for edge runtime
-  const result = await Tesseract.recognize(imageBuffer, 'eng', {
-    workerPath: '/tesseract/worker.min.js',
-    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/tesseract-core-lstm.wasm.js',
-    langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-    logger: (m) => {
-      if (m.status === 'recognizing text') {
-        console.log(`[OCR ${preprocessing}] Progress: ${Math.round(m.progress * 100)}%`);
-      }
-    },
-  });
-
-  return {
-    text: result.data.text.trim(),
-    confidence: result.data.confidence,
-    preprocessing,
+  rawLabel: string;
+  imageMatches: {
+    fullMatching: ImageMatch[];
+    partialMatching: ImageMatch[];
+    visuallySimilar: ImageMatch[];
   };
+  pagesWithMatchingImages: string[];
 }
 
 export async function POST(request: NextRequest) {
@@ -58,13 +42,9 @@ export async function POST(request: NextRequest) {
     const file = formData.get('image') as File;
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'Missing image file' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing image file' }, { status: 400 });
     }
 
-    // Validate file type
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -73,95 +53,80 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (8MB max)
     const maxSize = 8 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: `File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 8MB.` },
+        {
+          error: `File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 8MB.`,
+        },
         { status: 400 }
       );
     }
 
-    console.log(`[OCR API] Processing ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)}KB)`);
+    console.log(
+      `[Vision API] Processing ${file.name} (${file.type}, ${(file.size / 1024).toFixed(2)}KB)`
+    );
     const startTime = Date.now();
 
-    // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
-    const originalBuffer = Buffer.from(arrayBuffer);
+    const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Create preprocessing variants (normal + inverted)
-    console.log('[OCR API] Creating preprocessing variants...');
-    let normal: Buffer, inverted: Buffer;
-    try {
-      const variants = await createPreprocessingVariants(originalBuffer);
-      normal = variants.normal;
-      inverted = variants.inverted;
-      console.log(`[OCR API] Preprocessing complete: normal=${normal.length} bytes, inverted=${inverted.length} bytes`);
-    } catch (preprocessError) {
-      console.error('[OCR API] Preprocessing failed:', preprocessError);
-      throw new Error('Image preprocessing failed. Please try a different image.');
+    // ── Call Google Vision Web Detection ─────────────────────────────────────
+    console.log('[Vision API] Running Google Vision Web Detection...');
+
+    const visionData = await detectImageEntities(imageBuffer);
+    console.log(
+      `[Vision API] Vision result: bestGuessLabels=${JSON.stringify(visionData.bestGuessLabels)}, ` +
+        `webEntities=${JSON.stringify(visionData.webEntities.slice(0, 5))}`
+    );
+
+    // Build raw candidate list: bestGuessLabel first, then top web entities
+    const rawCandidates: string[] = [];
+
+    if (visionData.bestGuessLabels.length > 0) {
+      rawCandidates.push(visionData.bestGuessLabels[0].label);
     }
 
-    // Run dual-pass OCR
-    console.log('[OCR API] Running dual-pass OCR...');
-    const [passA, passB] = await Promise.all([
-      runOCRPass(normal, 'normal'),
-      runOCRPass(inverted, 'inverted'),
-    ]);
-
-    console.log(`[OCR API] Pass A (normal): confidence=${passA.confidence.toFixed(2)}%, text="${passA.text.substring(0, 50)}"`);
-    console.log(`[OCR API] Pass B (inverted): confidence=${passB.confidence.toFixed(2)}%, text="${passB.text.substring(0, 50)}"`);
-
-    // Pick the best result based on:
-    // 1. Higher confidence
-    // 2. If confidence is close (within 5%), prefer longer text
-    let bestPass: OCRPassResult;
-    const confidenceDiff = Math.abs(passA.confidence - passB.confidence);
-
-    if (confidenceDiff < 5) {
-      // Confidence is similar, pick the one with longer text
-      bestPass = passA.text.length >= passB.text.length ? passA : passB;
-      console.log(`[OCR API] Similar confidence, chose ${bestPass.preprocessing} (longer text)`);
-    } else {
-      // Pick the one with higher confidence
-      bestPass = passA.confidence > passB.confidence ? passA : passB;
-      console.log(`[OCR API] Chose ${bestPass.preprocessing} (higher confidence)`);
+    for (const entity of visionData.webEntities) {
+      const isDuplicate = rawCandidates.some(
+        (c) => c.toLowerCase() === entity.description.toLowerCase()
+      );
+      if (!isDuplicate) {
+        rawCandidates.push(entity.description);
+      }
     }
 
-    // Normalize text
-    const normalized = normalizeText(bestPass.text);
-
-    // Generate candidate queries
-    const candidates = generateCandidateQueries(normalized);
+    const query = rawCandidates.length > 0 ? normalizeText(rawCandidates[0]) : '';
+    const normalizedCandidates = rawCandidates
+      .map((c) => normalizeText(c))
+      .filter((c) => c.length > 0);
+    const rawLabel = rawCandidates[0] ?? '';
 
     const duration = Date.now() - startTime;
     console.log(
-      `[OCR API] Success: confidence=${bestPass.confidence.toFixed(2)}%, ` +
-      `preprocessing=${bestPass.preprocessing}, ` +
-      `normalized="${normalized}", ` +
-      `candidates=${JSON.stringify(candidates)}, ` +
-      `duration=${duration}ms`
+      `[Vision API] Chosen query: "${query}", rawLabel="${rawLabel}", ` +
+        `candidates=${JSON.stringify(normalizedCandidates)}, duration=${duration}ms`
     );
 
-    const result: OCRResult = {
-      text: bestPass.text,
-      confidence: bestPass.confidence / 100,
-      normalized_text: normalized,
-      candidates,
-      preprocessing: bestPass.preprocessing,
+    const result: VisionResult = {
+      query,
+      source: 'vision',
+      candidates: normalizedCandidates,
+      rawLabel,
+      imageMatches: {
+        fullMatching: visionData.fullMatchingImages,
+        partialMatching: visionData.partialMatchingImages,
+        visuallySimilar: visionData.visuallySimilarImages,
+      },
+      pagesWithMatchingImages: visionData.pagesWithMatchingImages,
     };
-
     return NextResponse.json(result);
-
   } catch (error) {
-    console.error('[OCR API] Error:', error);
+    console.error('[Vision API] Error:', error);
 
     if (error instanceof Error) {
       return NextResponse.json(
-        {
-          error: 'OCR processing failed',
-          message: error.message,
-        },
+        { error: 'Vision processing failed', message: error.message },
         { status: 500 }
       );
     }
