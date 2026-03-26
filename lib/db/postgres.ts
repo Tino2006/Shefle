@@ -17,6 +17,22 @@ import { Pool, QueryResult, QueryResultRow } from 'pg';
 
 let pool: Pool | null = null;
 
+function isTransientConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('connection terminated due to connection timeout') ||
+    message.includes('connection terminated unexpectedly') ||
+    message.includes('ecconnreset') ||
+    message.includes('econnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('etimedout')
+  );
+}
+
 /**
  * Get or create a PostgreSQL connection pool
  * Uses DATABASE_URL from environment variables
@@ -36,7 +52,7 @@ export function getPool(): Pool {
       connectionString: databaseUrl,
       max: 20, // Maximum number of clients in the pool
       idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection not available
+      connectionTimeoutMillis: 10000, // Allow extra time for Supabase pooler under load
     });
 
     // Handle pool errors
@@ -61,9 +77,9 @@ export async function query<T extends QueryResultRow = any>(
   params?: any[]
 ): Promise<QueryResult<T>> {
   const pool = getPool();
-  const start = Date.now();
+  const executeQuery = async (): Promise<QueryResult<T>> => {
+    const start = Date.now();
   
-  try {
     const result = await pool.query<T>(text, params);
     const duration = Date.now() - start;
     
@@ -75,9 +91,21 @@ export async function query<T extends QueryResultRow = any>(
         rowCount: result.rowCount,
       });
     }
-    
     return result;
+  };
+
+  try {
+    return await executeQuery();
   } catch (error) {
+    // Retry once for transient network/pooler failures
+    if (isTransientConnectionError(error)) {
+      console.warn('Transient database error, retrying once:', {
+        query: text.substring(0, 100),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return await executeQuery();
+    }
+
     console.error('Database query error:', {
       query: text.substring(0, 100),
       error: error instanceof Error ? error.message : 'Unknown error',

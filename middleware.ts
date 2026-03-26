@@ -6,9 +6,34 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Avoid hard crash during startup/misconfiguration; let app continue
+  // and fail gracefully on protected routes instead.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error(
+      'Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    );
+
+    const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/about', '/pricing', '/blog', '/docs', '/contact'];
+    const isPublicRoute = publicRoutes.some(route =>
+      request.nextUrl.pathname.startsWith(route)
+    );
+
+    if (isPublicRoute || request.nextUrl.pathname.startsWith('/api')) {
+      return supabaseResponse;
+    }
+
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/login';
+    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
