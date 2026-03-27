@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         : requestOrigin;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${appUrl}/reset-password`,
+      redirectTo: `${appUrl}/auth/callback?next=/reset-password`,
     });
 
     if (error) {
