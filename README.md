@@ -130,6 +130,36 @@ npx tsx scripts/uspto/download_latest_trtdxfap.ts --no-cleanup
 
 **Download fails**: Check your internet connection and verify the API is accessible
 
+### Vercel Daily Automation (Cron)
+
+You can run the USPTO import automatically once per day on Vercel.
+
+#### What is configured
+
+- Cron schedule in `vercel.json`: `0 6 * * *` (daily at 06:00 UTC)
+- Cron endpoint: `/api/cron/uspto-daily`
+- Endpoint is protected with `CRON_SECRET` bearer auth
+
+#### Required Vercel environment variables
+
+```bash
+USPTO_API_KEY=your_uspto_api_key
+DATABASE_URL=your_postgres_connection_string
+CRON_SECRET=a-long-random-secret
+```
+
+#### Trigger manually (for testing)
+
+```bash
+curl -X GET "https://<your-app-domain>/api/cron/uspto-daily" \
+  -H "Authorization: Bearer <your-cron-secret>"
+```
+
+#### Notes
+
+- The cron route runs with Node runtime and can take up to 300 seconds.
+- If import time exceeds your plan/runtime limits, split the import into smaller chunks or move heavy processing to a background worker.
+
 ## License
 
 Licensed under the [MIT license](https://github.com/heroui-inc/next-app-template/blob/main/LICENSE).
