@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        emailRedirectTo: `${appUrl}/login`,
+        emailRedirectTo: `${appUrl}/auth/confirm?next=${encodeURIComponent('/login?verified=1')}`,
         data: {
           first_name: firstName,
           last_name: lastName,

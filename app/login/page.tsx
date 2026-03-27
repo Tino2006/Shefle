@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -12,6 +12,19 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [oauthProviderLoading, setOauthProviderLoading] = useState<"google" | "apple" | null>(null);
+  const verified = searchParams.get("verified");
+  const authError = searchParams.get("error_code") || searchParams.get("error");
+
+  useEffect(() => {
+    if (verified === "1") {
+      toast.success("Email verified. You can sign in now.");
+      return;
+    }
+
+    if (authError === "otp_expired") {
+      toast.error("Verification link is invalid or expired. Please request a new one.");
+    }
+  }, [verified, authError]);
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
