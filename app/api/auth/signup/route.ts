@@ -15,12 +15,19 @@ export async function POST(request: Request) {
     const { email, password, firstName, lastName } = signUpSchema.parse(body);
 
     const supabase = await createClient();
+    const requestOrigin = new URL(request.url).origin;
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const appUrl =
+      configuredAppUrl && !configuredAppUrl.includes('localhost')
+        ? configuredAppUrl
+        : requestOrigin;
 
     // Sign up the user
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${appUrl}/login`,
         data: {
           first_name: firstName,
           last_name: lastName,

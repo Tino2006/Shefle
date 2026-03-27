@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [oauthProviderLoading, setOauthProviderLoading] = useState<"google" | "apple" | null>(null);
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -47,6 +49,36 @@ function LoginForm() {
       toast.error(error.message || "Invalid credentials");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOAuthSignIn = async (provider: "google" | "apple") => {
+    try {
+      setOauthProviderLoading(provider);
+      const supabase = createClient();
+      const redirectTo = searchParams.get("redirect") || "/";
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      callbackUrl.searchParams.set("next", redirectTo);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: callbackUrl.toString(),
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data.url) {
+        throw new Error("Missing OAuth redirect URL");
+      }
+
+      window.location.href = data.url;
+    } catch (error: any) {
+      toast.error(error.message || "Social login failed");
+      setOauthProviderLoading(null);
     }
   };
 
@@ -122,11 +154,30 @@ function LoginForm() {
             {/* Login Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || oauthProviderLoading !== null}
               className="w-full py-2.5 text-white text-sm font-semibold bg-red-800 rounded-md hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-800 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn("google")}
+                disabled={isLoading || oauthProviderLoading !== null}
+                className="w-full py-2.5 text-sm font-medium text-gray-800 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {oauthProviderLoading === "google" ? "Redirecting to Google..." : "Continue with Google"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn("apple")}
+                disabled={isLoading || oauthProviderLoading !== null}
+                className="w-full py-2.5 text-sm font-medium text-gray-800 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {oauthProviderLoading === "apple" ? "Redirecting to Apple..." : "Continue with Apple"}
+              </button>
+            </div>
 
             {/* Forgot Password */}
             <div className="text-center">
