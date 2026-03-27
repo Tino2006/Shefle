@@ -1,9 +1,87 @@
 import vision from '@google-cloud/vision';
 
-function getVisionClient() {
+interface VisionServiceAccountCredentials {
+  client_email: string;
+  private_key: string;
+  project_id?: string;
+}
+
+function parseCredentialsJson(
+  raw: string,
+  source: string
+): VisionServiceAccountCredentials {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `[Vision API] Invalid ${source}: expected valid JSON service account credentials`
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error(
+      `[Vision API] Invalid ${source}: JSON must be an object`
+    );
+  }
+
+  const credentials = parsed as Record<string, unknown>;
+  const clientEmail = credentials.client_email;
+  const privateKey = credentials.private_key;
+  const projectId = credentials.project_id;
+
+  if (typeof clientEmail !== 'string' || clientEmail.trim().length === 0) {
+    throw new Error(
+      `[Vision API] Invalid ${source}: missing client_email`
+    );
+  }
+
+  if (typeof privateKey !== 'string' || privateKey.trim().length === 0) {
+    throw new Error(
+      `[Vision API] Invalid ${source}: missing private_key`
+    );
+  }
+
+  return {
+    client_email: clientEmail.trim(),
+    // Support envs where newline escapes are pasted literally.
+    private_key: privateKey.replace(/\\n/g, '\n'),
+    project_id: typeof projectId === 'string' ? projectId : undefined,
+  };
+}
+
+function loadVisionCredentialsFromEnv():
+  | VisionServiceAccountCredentials
+  | null {
   const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
-  if (credentialsJson) {
-    const credentials = JSON.parse(credentialsJson);
+  if (credentialsJson && credentialsJson.trim().length > 0) {
+    return parseCredentialsJson(credentialsJson, 'GOOGLE_CREDENTIALS_JSON');
+  }
+
+  const inlineGoogleApplicationCredentials =
+    process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (
+    inlineGoogleApplicationCredentials &&
+    inlineGoogleApplicationCredentials.trim().startsWith('{')
+  ) {
+    return parseCredentialsJson(
+      inlineGoogleApplicationCredentials,
+      'GOOGLE_APPLICATION_CREDENTIALS'
+    );
+  }
+
+  const base64Credentials = process.env.GOOGLE_CREDENTIALS_BASE64;
+  if (base64Credentials && base64Credentials.trim().length > 0) {
+    const decoded = Buffer.from(base64Credentials, 'base64').toString('utf8');
+    return parseCredentialsJson(decoded, 'GOOGLE_CREDENTIALS_BASE64');
+  }
+
+  return null;
+}
+
+function getVisionClient() {
+  const credentials = loadVisionCredentialsFromEnv();
+  if (credentials) {
     return new vision.ImageAnnotatorClient({
       credentials: {
         client_email: credentials.client_email,
@@ -12,7 +90,14 @@ function getVisionClient() {
       projectId: credentials.project_id,
     });
   }
-  // Falls back to Application Default Credentials (local dev with gcloud CLI)
+
+  if (process.env.VERCEL || process.env.VERCEL_ENV === 'production') {
+    throw new Error(
+      '[Vision API] Missing credentials in Vercel runtime. Set GOOGLE_CREDENTIALS_JSON to the full service account JSON in Vercel Project Settings > Environment Variables, then redeploy.'
+    );
+  }
+
+  // Local dev fallback with gcloud ADC.
   return new vision.ImageAnnotatorClient();
 }
 
