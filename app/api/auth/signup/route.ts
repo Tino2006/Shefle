@@ -22,12 +22,14 @@ export async function POST(request: Request) {
         ? configuredAppUrl
         : requestOrigin;
 
+    const emailRedirectTo = `${appUrl}/auth/confirm?next=${encodeURIComponent('/login?verified=1')}`;
+
     // Sign up the user
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${appUrl}/auth/confirm?next=${encodeURIComponent('/login?verified=1')}`,
+        emailRedirectTo,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -36,6 +38,35 @@ export async function POST(request: Request) {
     });
 
     if (error) {
+      const isAlreadyRegistered = /already registered/i.test(error.message);
+
+      // If user retried signup with an unconfirmed account, resend confirmation email.
+      if (isAlreadyRegistered) {
+        const { error: resendError } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: {
+            emailRedirectTo,
+          },
+        });
+
+        if (!resendError) {
+          return NextResponse.json({
+            message: 'Account already exists but is not confirmed. We sent a new verification email.',
+          });
+        }
+
+        const isRateLimited =
+          /rate limit/i.test(resendError.message) ||
+          /security purposes/i.test(resendError.message);
+        if (isRateLimited) {
+          return NextResponse.json(
+            { error: 'Please wait a minute before requesting another confirmation email.' },
+            { status: 429 }
+          );
+        }
+      }
+
       return NextResponse.json(
         { error: error.message },
         { status: 400 }

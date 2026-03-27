@@ -37,7 +37,7 @@ export default function SignupPage() {
         throw new Error(data.error || "Signup failed");
       }
 
-      toast.success("Account created! Please check your email to verify.");
+      toast.success(data.message || "Account created! Please check your email to verify.");
       router.push("/login");
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
