@@ -1,5 +1,21 @@
 import vision from '@google-cloud/vision';
 
+function getVisionClient() {
+  const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
+  if (credentialsJson) {
+    const credentials = JSON.parse(credentialsJson);
+    return new vision.ImageAnnotatorClient({
+      credentials: {
+        client_email: credentials.client_email,
+        private_key: credentials.private_key,
+      },
+      projectId: credentials.project_id,
+    });
+  }
+  // Falls back to Application Default Credentials (local dev with gcloud CLI)
+  return new vision.ImageAnnotatorClient();
+}
+
 /**
  * Words that are too generic to be useful brand identifiers.
  * These are filtered out from Vision web entity results.
@@ -77,7 +93,7 @@ export interface VisionDetectionResult {
 export async function detectImageEntities(
   imageBuffer: Buffer
 ): Promise<VisionDetectionResult> {
-  const client = new vision.ImageAnnotatorClient();
+  const client = getVisionClient();
   const extractPageUrl = (img: unknown): string | undefined => {
     if (!img || typeof img !== 'object') return undefined;
     const candidate = (img as Record<string, unknown>).pageUrl;
