@@ -23,6 +23,7 @@ interface TrademarkRow {
   filing_date: string | null;
   registration_date: string | null;
   owner_name: string | null;
+  owner_country: string | null;
   sim_trgm: number;
   sim_final: number;
   rank: number;
@@ -31,11 +32,13 @@ interface TrademarkRow {
 
 // Response type
 interface TrademarkResult {
+  office: string;
   serial_number: string;
   registration_number: string | null;
   mark_text: string | null;
   status_norm: string | null;
   owner_name: string | null;
+  owner_country: string | null;
   filing_date: string | null;
   classes: number[];
   sim_trgm: number;
@@ -104,11 +107,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 🎯 TWO-STAGE SIMILARITY: Trigram for candidates, Token-based for final ranking
-    // Build the search query with two-stage scoring
+    // Hybrid similarity retrieval/ranking:
+    // Stage 1: lexical + phonetic + compound-word candidate retrieval
+    // Stage 2: weighted multi-signal score via trademark_similarity_v2()
     const sqlQuery = `
       WITH candidates AS (
-        -- Stage 1: Use trigram for candidate selection (broad net)
+        -- Stage 1: broad retrieval net
         SELECT
           t.id,
           t.office,
@@ -119,10 +123,15 @@ export async function GET(request: NextRequest) {
           t.filing_date::text,
           t.registration_date::text,
           t.owner_name,
+          t.owner_country,
           similarity(
             LOWER(unaccent(COALESCE(t.mark_text, ''))),
             LOWER(unaccent($1))
-          ) AS trgm_score
+          ) AS trgm_score,
+          similarity(
+            LOWER(unaccent(REPLACE(COALESCE(t.mark_text, ''), ' ', ''))),
+            LOWER(unaccent(REPLACE($1, ' ', '')))
+          ) AS trgm_nospace_score
         FROM public.trademarks t
         LEFT JOIN public.trademark_classes tc ON t.id = tc.trademark_id
         WHERE 
@@ -141,12 +150,20 @@ export async function GET(request: NextRequest) {
                 LOWER(unaccent(t.mark_text)),
                 LOWER(unaccent($1))
               ) > 0.15
+            -- Phonetic gates (captures NIKE/NIKKE, KLEAN/CLEAN)
+            OR dmetaphone(LOWER(unaccent(t.mark_text))) = dmetaphone(LOWER(unaccent($1)))
+            OR dmetaphone_alt(LOWER(unaccent(t.mark_text))) = dmetaphone_alt(LOWER(unaccent($1)))
+            -- Compound-word gate (captures LIGHT BOX/LIGHTBOX)
+            OR similarity(
+                LOWER(unaccent(REPLACE(t.mark_text, ' ', ''))),
+                LOWER(unaccent(REPLACE($1, ' ', '')))
+              ) > 0.2
           )
           AND t.status_norm = ANY($3)
           ${classNumbers ? `AND tc.nice_class = ANY($4)` : ''}
         GROUP BY t.id
       )
-      -- Stage 2: Re-rank with token-based scoring
+      -- Stage 2: Re-rank with weighted multi-signal scoring
       SELECT
         c.id::text,
         c.office,
@@ -157,22 +174,24 @@ export async function GET(request: NextRequest) {
         c.filing_date,
         c.registration_date,
         c.owner_name,
+        c.owner_country,
         c.trgm_score AS sim_trgm,
-        -- Token-based final score (deflates inflated scores)
+        -- Weighted multi-signal final score
         CASE 
           WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
-          ELSE token_similarity($1, c.mark_text)
+          ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
         END AS sim_final,
         -- Ranking based on final score
         (
           CASE 
             WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1000.0
-            ELSE token_similarity($1, c.mark_text) * 100.0
+            ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric) * 100.0
           END
           + ts_rank(
               to_tsvector('simple', COALESCE(c.mark_text, '')),
               plainto_tsquery('simple', $1)
             ) * 10.0
+          + c.trgm_nospace_score * 5.0
         ) AS rank,
         COALESCE(
           (
@@ -183,6 +202,11 @@ export async function GET(request: NextRequest) {
           ARRAY[]::integer[]
         ) AS classes
       FROM candidates c
+      WHERE
+        CASE
+          WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
+          ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
+        END >= 0.4
       ORDER BY rank DESC, sim_final DESC
       LIMIT $2
     `;
@@ -211,11 +235,13 @@ export async function GET(request: NextRequest) {
       const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
 
       return {
+        office: row.office,
         serial_number: row.serial_number,
         registration_number: row.registration_number,
         mark_text: row.mark_text,
         status_norm: row.status_norm,
         owner_name: row.owner_name,
+        owner_country: row.owner_country,
         filing_date: row.filing_date,
         classes: row.classes || [],
         sim_trgm: parseFloat(simTrgm.toFixed(3)),

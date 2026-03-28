@@ -75,11 +75,11 @@ export async function POST(
       .map(s => s.trim().toUpperCase())
       .filter(s => ['ACTIVE', 'PENDING', 'DEAD'].includes(s));
 
-    // 🎯 TWO-STAGE SIMILARITY: Trigram for candidates, Token-based for final ranking
-    // Build search query with two-stage scoring
+    // Hybrid similarity retrieval/ranking:
+    // lexical + phonetic + compound-word retrieval, then weighted scoring.
     const searchQuery = `
       WITH candidates AS (
-        -- Stage 1: Use trigram for candidate selection
+        -- Stage 1: broad retrieval
         SELECT
           t.id,
           t.serial_number,
@@ -87,7 +87,11 @@ export async function POST(
           similarity(
             LOWER(unaccent(COALESCE(t.mark_text, ''))),
             LOWER(unaccent($1))
-          ) AS trgm_score
+          ) AS trgm_score,
+          similarity(
+            LOWER(unaccent(REPLACE(COALESCE(t.mark_text, ''), ' ', ''))),
+            LOWER(unaccent(REPLACE($1, ' ', '')))
+          ) AS trgm_nospace_score
         FROM public.trademarks t
         ${watchlist.class_filter ? 'LEFT JOIN public.trademark_classes tc ON t.id = tc.trademark_id' : ''}
         WHERE 
@@ -106,6 +110,14 @@ export async function POST(
                 LOWER(unaccent(t.mark_text)),
                 LOWER(unaccent($1))
               ) > 0.15
+            -- Phonetic gates
+            OR dmetaphone(LOWER(unaccent(t.mark_text))) = dmetaphone(LOWER(unaccent($1)))
+            OR dmetaphone_alt(LOWER(unaccent(t.mark_text))) = dmetaphone_alt(LOWER(unaccent($1)))
+            -- Compound-word gate
+            OR similarity(
+                LOWER(unaccent(REPLACE(t.mark_text, ' ', ''))),
+                LOWER(unaccent(REPLACE($1, ' ', '')))
+              ) > 0.2
           )
           AND t.status_norm = ANY($2)
           ${watchlist.class_filter ? 'AND tc.nice_class = ANY($3)' : ''}
@@ -117,27 +129,28 @@ export async function POST(
         c.serial_number,
         c.mark_text,
         c.trgm_score AS sim_trgm,
-        -- Token-based final score
+        -- Weighted multi-signal score
         CASE 
           WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
-          ELSE token_similarity($1, c.mark_text)
+          ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
         END AS sim_final,
         -- Ranking based on final score
         (
           CASE 
             WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1000.0
-            ELSE token_similarity($1, c.mark_text) * 100.0
+            ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric) * 100.0
           END
           + ts_rank(
               to_tsvector('simple', COALESCE(c.mark_text, '')),
               plainto_tsquery('simple', $1)
             ) * 10.0
+          + c.trgm_nospace_score * 5.0
         ) AS rank
       FROM candidates c
       WHERE 
         CASE 
           WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
-          ELSE token_similarity($1, c.mark_text)
+          ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
         END >= $${watchlist.class_filter ? '4' : '3'}
       ORDER BY rank DESC, sim_final DESC
       LIMIT 100

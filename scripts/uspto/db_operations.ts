@@ -115,10 +115,11 @@ export async function batchUpsertTrademarks(
           filing_date,
           registration_date,
           owner_name,
+          owner_country,
           goods_services_text,
           source_version,
           created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
         ON CONFLICT (office, serial_number) 
         DO UPDATE SET
           registration_number = EXCLUDED.registration_number,
@@ -128,6 +129,7 @@ export async function batchUpsertTrademarks(
           filing_date = EXCLUDED.filing_date,
           registration_date = EXCLUDED.registration_date,
           owner_name = EXCLUDED.owner_name,
+          owner_country = EXCLUDED.owner_country,
           goods_services_text = EXCLUDED.goods_services_text,
           source_version = EXCLUDED.source_version
         RETURNING id`,
@@ -141,6 +143,7 @@ export async function batchUpsertTrademarks(
           record.filingDate || null,
           record.registrationDate || null,
           record.ownerName || null,
+          record.ownerCountry || null,
           record.goodsServicesText || null,
           sourceVersion || null,
         ]

@@ -1,14 +1,14 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
 import { generateCandidateQueries } from "@/lib/queryGeneration";
 
 interface TrademarkResult {
   serial_number: string;
-  office?: string;
+  owner_country?: string | null;
   registration_number: string | null;
   mark_text: string | null;
   status_norm: string | null;
@@ -259,11 +259,98 @@ export default function SearchPage() {
   };
 
   const getSimilarityColor = (score: number) => {
-    if (score >= 0.9) return 'text-red-600';
-    if (score >= 0.8) return 'text-orange-600';
-    if (score >= 0.7) return 'text-yellow-600';
-    return 'text-blue-600';
+    if (score >= 0.8) return "text-red-700";
+    if (score >= 0.6) return "text-amber-700";
+    if (score >= 0.4) return "text-gray-600";
+    return "text-gray-400";
   };
+
+  const getCountryLabel = (country?: string | null) => {
+    const value = country?.trim();
+    if (!value) return "Unknown country";
+    const code = value.toUpperCase();
+
+    const countryCodeMap: Record<string, string> = {
+      US: "United States",
+      CA: "Canada",
+      GB: "United Kingdom",
+      UK: "United Kingdom",
+      KR: "South Korea",
+      KP: "North Korea",
+      JP: "Japan",
+      CN: "China",
+      TW: "Taiwan",
+      HK: "Hong Kong",
+      SG: "Singapore",
+      IN: "India",
+      AU: "Australia",
+      NZ: "New Zealand",
+      DE: "Germany",
+      FR: "France",
+      IT: "Italy",
+      ES: "Spain",
+      PT: "Portugal",
+      NL: "Netherlands",
+      BE: "Belgium",
+      CH: "Switzerland",
+      AT: "Austria",
+      SE: "Sweden",
+      NO: "Norway",
+      DK: "Denmark",
+      FI: "Finland",
+      IE: "Ireland",
+      PL: "Poland",
+      CZ: "Czech Republic",
+      RO: "Romania",
+      BG: "Bulgaria",
+      GR: "Greece",
+      TR: "Turkey",
+      AE: "United Arab Emirates",
+      SA: "Saudi Arabia",
+      QA: "Qatar",
+      KW: "Kuwait",
+      IL: "Israel",
+      ZA: "South Africa",
+      BR: "Brazil",
+      MX: "Mexico",
+      AR: "Argentina",
+      CL: "Chile",
+      CO: "Colombia",
+      PE: "Peru",
+      EU: "European Union",
+      MC: "Monaco",
+      LU: "Luxembourg",
+      LI: "Liechtenstein",
+      IS: "Iceland",
+    };
+
+    const fullName = countryCodeMap[code];
+    if (fullName) {
+      return `${fullName} (${code})`;
+    }
+
+    return value;
+  };
+
+  const compareByCountryThenSimilarity = (a: TrademarkResult, b: TrademarkResult) => {
+    const countryCmp = getCountryLabel(a.owner_country).localeCompare(getCountryLabel(b.owner_country));
+    if (countryCmp !== 0) return countryCmp;
+    return b.similarity_score - a.similarity_score;
+  };
+
+  const groupedResults = useMemo(() => {
+    return {
+      HIGH: [...results].filter((r) => r.risk_level === "HIGH").sort(compareByCountryThenSimilarity),
+      MEDIUM: [...results].filter((r) => r.risk_level === "MEDIUM").sort(compareByCountryThenSimilarity),
+      LOW: [...results].filter((r) => r.risk_level === "LOW").sort(compareByCountryThenSimilarity),
+    };
+  }, [results]);
+
+  const riskGroups: Array<{ key: "HIGH" | "MEDIUM" | "LOW"; label: string }> = [
+    { key: "HIGH", label: "HIGH similarity" },
+    { key: "MEDIUM", label: "MEDIUM similarity" },
+    { key: "LOW", label: "LOW similarity" },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -340,7 +427,7 @@ export default function SearchPage() {
             </h2>
             {(results.length > 0 || visualMatches.length > 0) && (
               <p className="text-gray-600 mt-1">
-                Showing results for "{searchParams.get('query')}"
+                Showing results for &quot;{searchParams.get("query")}&quot;
                 {isMultiSearch && " (multi-stage search)"}
               </p>
             )}
@@ -442,84 +529,109 @@ export default function SearchPage() {
             <p className="text-gray-600 text-sm mb-4">
               Registered trademarks with similar text/names (ranked by text similarity)
             </p>
-            <div className="space-y-4">
-              {results.map((result, index) => (
-                <div
-                  key={`${result.serial_number}-${index}`}
-                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="text-xl font-bold text-gray-900">
-                          {result.mark_text || 'N/A'}
-                        </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(result.risk_level)}`}>
-                          {result.risk_level.replace('_', ' ')}
-                        </span>
-                        <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(result.status_norm)}`}>
-                          {result.status_norm || 'Unknown'}
-                        </span>
-                        {isMultiSearch && result.matched_candidate && (
-                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium border border-purple-200">
-                            matched: {result.matched_candidate}
-                          </span>
-                        )}
-                      </div>
+            <div className="space-y-8">
+              {riskGroups.map((group) => {
+                const groupItems = groupedResults[group.key];
+                if (groupItems.length === 0) return null;
 
-                      <div className="grid grid-cols-2 gap-4 text-sm mt-4">
-                        <div>
-                          <span className="text-gray-500">Serial Number:</span>
-                          <span className="ml-2 font-medium text-gray-900">{result.serial_number}</span>
+                return (
+                  <div key={group.key}>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-3">
+                      {group.label} ({groupItems.length})
+                    </h4>
+                    <div className="space-y-4">
+                      {groupItems.map((result, index) => (
+                        <div
+                          key={`${result.serial_number}-${group.key}-${index}`}
+                          className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <h3 className="text-xl font-bold text-gray-900">
+                                  {result.mark_text || 'N/A'}
+                                </h3>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(result.risk_level)}`}>
+                                  {result.risk_level.replace('_', ' ')}
+                                </span>
+                                <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(result.status_norm)}`}>
+                                  {result.status_norm || 'Unknown'}
+                                </span>
+                                {isMultiSearch && result.matched_candidate && (
+                                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium border border-purple-200">
+                                    matched: {result.matched_candidate}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+                                <div>
+                                  <span className="text-gray-500">Country:</span>
+                                  <span className="ml-2 font-medium text-gray-900">
+                                    {getCountryLabel(result.owner_country)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Serial Number:</span>
+                                  <span className="ml-2 font-medium text-gray-900">{result.serial_number}</span>
+                                </div>
+                                {result.registration_number && (
+                                  <div>
+                                    <span className="text-gray-500">Registration:</span>
+                                    <span className="ml-2 font-medium text-gray-900">{result.registration_number}</span>
+                                  </div>
+                                )}
+                                {result.owner_name && (
+                                  <div>
+                                    <span className="text-gray-500">Owner:</span>
+                                    <span className="ml-2 font-medium text-gray-900">{result.owner_name}</span>
+                                  </div>
+                                )}
+                                {result.filing_date && (
+                                  <div>
+                                    <span className="text-gray-500">Filing Date:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {new Date(result.filing_date).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {result.classes.length > 0 && (
+                                <div className="mt-4">
+                                  <span className="text-gray-500 text-sm">Classes:</span>
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {result.classes.map((cls) => (
+                                      <span
+                                        key={cls}
+                                        className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
+                                      >
+                                        {cls}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-sm text-gray-500">Estimated similarity</div>
+                              <div className="mt-1 flex items-baseline justify-end gap-2">
+                                <span
+                                  className={`text-3xl font-semibold tracking-tight ${getSimilarityColor(result.similarity_score)}`}
+                                >
+                                  {(result.similarity_score * 100).toFixed(0)}%
+                                </span>
+                                <span className="text-sm text-gray-500">similar</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        {result.registration_number && (
-                          <div>
-                            <span className="text-gray-500">Registration:</span>
-                            <span className="ml-2 font-medium text-gray-900">{result.registration_number}</span>
-                          </div>
-                        )}
-                        {result.owner_name && (
-                          <div>
-                            <span className="text-gray-500">Owner:</span>
-                            <span className="ml-2 font-medium text-gray-900">{result.owner_name}</span>
-                          </div>
-                        )}
-                        {result.filing_date && (
-                          <div>
-                            <span className="text-gray-500">Filing Date:</span>
-                            <span className="ml-2 font-medium text-gray-900">
-                              {new Date(result.filing_date).toLocaleDateString()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {result.classes.length > 0 && (
-                        <div className="mt-4">
-                          <span className="text-gray-500 text-sm">Classes:</span>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {result.classes.map((cls) => (
-                              <span
-                                key={cls}
-                                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
-                              >
-                                {cls}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">Text Match</div>
-                      <div className="text-3xl font-bold text-red-800">
-                        {(result.similarity_score * 100).toFixed(0)}%
-                      </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

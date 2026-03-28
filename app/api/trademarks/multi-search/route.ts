@@ -22,6 +22,7 @@ interface TrademarkRow {
   filing_date: string | null;
   registration_date: string | null;
   owner_name: string | null;
+  owner_country: string | null;
   sim_trgm: number;
   sim_final: number;
   rank: number;
@@ -36,6 +37,7 @@ interface TrademarkResult {
   mark_text: string | null;
   status_norm: string | null;
   owner_name: string | null;
+  owner_country: string | null;
   filing_date: string | null;
   classes: number[];
   sim_trgm: number;
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
     const statusValues = ['ACTIVE', 'PENDING', 'DEAD'];
 
     for (const candidate of candidates) {
-      // Build SQL query
+      // Build SQL query with hybrid retrieval/ranking
       const sqlQuery = `
         WITH candidates AS (
           SELECT
@@ -100,10 +102,15 @@ export async function POST(request: NextRequest) {
             t.filing_date::text,
             t.registration_date::text,
             t.owner_name,
+            t.owner_country,
             similarity(
               LOWER(unaccent(COALESCE(t.mark_text, ''))),
               LOWER(unaccent($1))
-            ) AS trgm_score
+            ) AS trgm_score,
+            similarity(
+              LOWER(unaccent(REPLACE(COALESCE(t.mark_text, ''), ' ', ''))),
+              LOWER(unaccent(REPLACE($1, ' ', '')))
+            ) AS trgm_nospace_score
           FROM public.trademarks t
           LEFT JOIN public.trademark_classes tc ON t.id = tc.trademark_id
           WHERE 
@@ -117,6 +124,12 @@ export async function POST(request: NextRequest) {
                   LOWER(unaccent(t.mark_text)),
                   LOWER(unaccent($1))
                 ) > 0.15
+              OR dmetaphone(LOWER(unaccent(t.mark_text))) = dmetaphone(LOWER(unaccent($1)))
+              OR dmetaphone_alt(LOWER(unaccent(t.mark_text))) = dmetaphone_alt(LOWER(unaccent($1)))
+              OR similarity(
+                  LOWER(unaccent(REPLACE(t.mark_text, ' ', ''))),
+                  LOWER(unaccent(REPLACE($1, ' ', '')))
+                ) > 0.2
             )
             AND t.status_norm = ANY($3)
           GROUP BY t.id
@@ -131,20 +144,22 @@ export async function POST(request: NextRequest) {
           c.filing_date,
           c.registration_date,
           c.owner_name,
+          c.owner_country,
           c.trgm_score AS sim_trgm,
           CASE 
             WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
-            ELSE token_similarity($1, c.mark_text)
+            ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
           END AS sim_final,
           (
             CASE 
               WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1000.0
-              ELSE token_similarity($1, c.mark_text) * 100.0
+              ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric) * 100.0
             END
             + ts_rank(
                 to_tsvector('simple', COALESCE(c.mark_text, '')),
                 plainto_tsquery('simple', $1)
               ) * 10.0
+            + c.trgm_nospace_score * 5.0
           ) AS rank,
           COALESCE(
             (
@@ -156,6 +171,11 @@ export async function POST(request: NextRequest) {
           ) AS classes,
           $1::text AS candidate_query
         FROM candidates c
+        WHERE
+          CASE
+            WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
+            ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
+          END >= 0.4
         ORDER BY rank DESC, sim_final DESC
         LIMIT $2
       `;
@@ -177,6 +197,7 @@ export async function POST(request: NextRequest) {
             mark_text: row.mark_text,
             status_norm: row.status_norm,
             owner_name: row.owner_name,
+            owner_country: row.owner_country,
             filing_date: row.filing_date,
             classes: row.classes || [],
             sim_trgm: parseFloat(simTrgm.toFixed(3)),

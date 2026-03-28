@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.trademarks (
   filing_date DATE,
   registration_date DATE,
   owner_name TEXT,
+  owner_country TEXT,
   goods_services_text TEXT,
   source_version TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

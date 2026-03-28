@@ -22,6 +22,7 @@ export interface TrademarkRecord {
   registrationDate?: Date;
   statusDate?: Date;
   ownerName?: string;
+  ownerCountry?: string;
   goodsServicesText?: string;
   niceClasses: number[];
 }
@@ -130,6 +131,17 @@ function normalizeTrademarkStatus(
   return 'PENDING';
 }
 
+function normalizeCountryValue(countryRaw: string): string | undefined {
+  const value = countryRaw.trim();
+  if (!value) return undefined;
+
+  if (value.length <= 3) {
+    return value.toUpperCase();
+  }
+
+  return value;
+}
+
 /**
  * Stream parse USPTO trademark XML file with proper async handling
  * 
@@ -188,6 +200,24 @@ export async function parseTrademarkXML(
           niceClasses: [],
         };
       }
+
+      // Fallback: some country values can appear as XML attributes.
+      if (state.insideCaseFile && state.currentTrademark && !state.currentTrademark.ownerCountry) {
+        for (const [attrNameRaw, attrValueRaw] of Object.entries(node.attributes || {})) {
+          const attrName = normalizeTagName(attrNameRaw);
+          if (!attrName.includes('country')) continue;
+
+          const attrValue = typeof attrValueRaw === 'string'
+            ? attrValueRaw
+            : String((attrValueRaw as any)?.value ?? '');
+
+          const normalizedCountry = normalizeCountryValue(attrValue);
+          if (normalizedCountry) {
+            state.currentTrademark.ownerCountry = normalizedCountry;
+            break;
+          }
+        }
+      }
     });
 
     // Handle text content
@@ -245,6 +275,7 @@ export async function parseTrademarkXML(
               registrationDate: state.currentTrademark.registrationDate,
               statusDate: state.currentTrademark.statusDate,
               ownerName: state.currentTrademark.ownerName,
+              ownerCountry: state.currentTrademark.ownerCountry,
               goodsServicesText: state.currentTrademark.goodsServicesText?.substring(0, 5000),
               niceClasses: state.currentTrademark.niceClasses || [],
             };
@@ -308,6 +339,31 @@ export async function parseTrademarkXML(
               if (!state.hasSeenPartyName) {
                 state.currentTrademark.ownerName = text;
                 state.hasSeenPartyName = true;
+              }
+              break;
+
+            case 'country':
+            case 'country-code':
+            case 'applicant-country':
+            case 'owner-country':
+            case 'domicile-country':
+            case 'country-of-domicile':
+            case 'nationality-country':
+            case 'country-of-incorporation':
+            case 'applicant-address-country':
+            case 'owner-address-country':
+              if (!state.currentTrademark.ownerCountry) {
+                state.currentTrademark.ownerCountry = normalizeCountryValue(text);
+              }
+              break;
+
+            default:
+              // Fallback: capture any country-like tag without hard-coding all variants.
+              if (
+                normalizedTag.includes('country') &&
+                !state.currentTrademark.ownerCountry
+              ) {
+                state.currentTrademark.ownerCountry = normalizeCountryValue(text);
               }
               break;
               
