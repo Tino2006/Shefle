@@ -82,30 +82,17 @@ export async function completeImportRun(
   );
 }
 
-/**
- * Batch upsert trademarks with their classes
- * Uses a transaction to ensure atomicity
- */
-export async function batchUpsertTrademarks(
-  records: TrademarkRecord[],
-  office: string = 'USPTO',
+/** Max rows per DB transaction — avoids long transactions that poolers (e.g. Supabase) terminate. */
+const UPSERT_CHUNK_SIZE = 75;
+
+async function upsertSingleRecord(
+  client: PoolClient,
+  record: TrademarkRecord,
+  office: string,
   sourceVersion?: string
-): Promise<number> {
-  if (records.length === 0) return 0;
-
-  const pool = getPool();
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    let upsertedCount = 0;
-
-    // Process each record
-    for (const record of records) {
-      // Upsert trademark
-      const trademarkResult = await client.query<{ id: number }>(
-        `INSERT INTO public.trademarks (
+): Promise<void> {
+  const trademarkResult = await client.query<{ id: number }>(
+    `INSERT INTO public.trademarks (
           office,
           serial_number,
           registration_number,
@@ -133,54 +120,80 @@ export async function batchUpsertTrademarks(
           goods_services_text = EXCLUDED.goods_services_text,
           source_version = EXCLUDED.source_version
         RETURNING id`,
-        [
-          office,
-          record.serialNumber,
-          record.registrationNumber || null,
-          record.markText || null,
-          record.statusRaw || null,
-          record.statusNorm || null,
-          record.filingDate || null,
-          record.registrationDate || null,
-          record.ownerName || null,
-          record.ownerCountry || null,
-          record.goodsServicesText || null,
-          sourceVersion || null,
-        ]
-      );
+    [
+      office,
+      record.serialNumber,
+      record.registrationNumber || null,
+      record.markText || null,
+      record.statusRaw || null,
+      record.statusNorm || null,
+      record.filingDate || null,
+      record.registrationDate || null,
+      record.ownerName || null,
+      record.ownerCountry || null,
+      record.goodsServicesText || null,
+      sourceVersion || null,
+    ]
+  );
 
-      const trademarkId = trademarkResult.rows[0].id;
-      upsertedCount++;
+  const trademarkId = trademarkResult.rows[0].id;
 
-      // Update classes if any
-      if (record.niceClasses.length > 0) {
-        // Delete existing classes
-        await client.query(
-          'DELETE FROM public.trademark_classes WHERE trademark_id = $1',
-          [trademarkId]
-        );
+  if (record.niceClasses.length > 0) {
+    await client.query('DELETE FROM public.trademark_classes WHERE trademark_id = $1', [
+      trademarkId,
+    ]);
 
-        // Insert new classes
-        const classValues = record.niceClasses
-          .map((cls, idx) => `($1, $${idx + 2})`)
-          .join(', ');
-        
-        if (classValues) {
-          await client.query(
-            `INSERT INTO public.trademark_classes (trademark_id, nice_class) 
+    const classValues = record.niceClasses.map((cls, idx) => `($1, $${idx + 2})`).join(', ');
+
+    if (classValues) {
+      await client.query(
+        `INSERT INTO public.trademark_classes (trademark_id, nice_class) 
              VALUES ${classValues}
              ON CONFLICT (trademark_id, nice_class) DO NOTHING`,
-            [trademarkId, ...record.niceClasses]
-          );
+        [trademarkId, ...record.niceClasses]
+      );
+    }
+  }
+}
+
+/**
+ * Batch upsert trademarks with their classes.
+ * Commits in small chunks so remote poolers do not kill long-running transactions.
+ */
+export async function batchUpsertTrademarks(
+  records: TrademarkRecord[],
+  office: string = 'USPTO',
+  sourceVersion?: string
+): Promise<number> {
+  if (records.length === 0) return 0;
+
+  const pool = getPool();
+  const client = await pool.connect();
+
+  let upsertedCount = 0;
+
+  try {
+    for (let offset = 0; offset < records.length; offset += UPSERT_CHUNK_SIZE) {
+      const slice = records.slice(offset, offset + UPSERT_CHUNK_SIZE);
+      await client.query('BEGIN');
+      try {
+        for (const record of slice) {
+          await upsertSingleRecord(client, record, office, sourceVersion);
+          upsertedCount++;
         }
+        await client.query('COMMIT');
+      } catch (chunkError) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Connection may already be dead; release below.
+        }
+        throw chunkError;
       }
     }
 
-    await client.query('COMMIT');
     return upsertedCount;
-
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Batch upsert failed:', error);
     throw error;
   } finally {

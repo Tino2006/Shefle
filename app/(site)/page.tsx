@@ -159,10 +159,12 @@ export default function Home() {
 
             {/* Search and Upload Section */}
             <div className="w-full max-w-4xl mb-6">
-              {/* Single Row with Search and Search Button */}
-              <form onSubmit={handleSearch} className="flex items-center gap-3">
-                {/* Search Input with Upload Button Inside */}
-                <div className="relative flex-1">
+              <form
+                onSubmit={handleSearch}
+                className="flex flex-col gap-3 sm:flex-row sm:items-center"
+              >
+                {/* Search field + upload; Search button stacks below on small screens */}
+                <div className="relative w-full min-w-0 flex-1">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                     <SearchIcon size={20} />
                   </div>
@@ -171,22 +173,25 @@ export default function Home() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search your logo or brand name..."
-                    className="w-full pl-12 pr-40 py-3.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
+                    className="w-full pl-12 pr-14 py-3.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all"
                     disabled={isProcessing}
                   />
-                  {/* Upload Button Inside Input */}
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={handleUploadClick}
                     disabled={isProcessing}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label={isProcessing ? "Processing upload" : "Upload an image to search"}
+                    className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-red-200/90 bg-red-50/80 text-red-800 backdrop-blur-[2px] transition-all duration-200 hover:border-red-300 hover:bg-red-100/90 hover:text-red-900 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-800/20 focus-visible:ring-offset-2"
                   >
-                    <UploadIcon size={16} />
-                    <span className="text-sm font-medium">
-                      {isProcessing ? "Processing..." : "Upload file"}
-                    </span>
+                    {isProcessing ? (
+                      <span
+                        className="h-[1.125rem] w-[1.125rem] shrink-0 animate-spin rounded-full border-2 border-red-200 border-t-red-800"
+                        aria-hidden
+                      />
+                    ) : (
+                      <UploadIcon size={18} />
+                    )}
                   </button>
-                  {/* Hidden file input */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -196,11 +201,10 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Search Button */}
                 <button
                   type="submit"
                   disabled={!searchQuery.trim() || isProcessing}
-                  className="px-10 py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="w-full shrink-0 px-10 py-3.5 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors shadow-sm whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed sm:w-auto"
                 >
                   Search
                 </button>
@@ -271,14 +275,15 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Hero Image */}
-          <div className="mt-16">
-            <div className="rounded-2xl overflow-hidden shadow-xl">
-              <div className="relative w-full aspect-[16/9]">
+          {/* Hero image: capped on large screens; replace PNG with a wider export (e.g. ~2048px) for sharper 2× displays */}
+          <div className="mt-16 lg:mt-20">
+            <div className="mx-auto w-full max-w-5xl rounded-2xl shadow-xl ring-1 ring-black/5">
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl">
                 <Image
                   src="/Images/image.png"
                   alt="Brand protection visualization with cybersecurity shield"
                   fill
+                  sizes="(max-width: 1024px) 100vw, 1024px"
                   className="object-cover"
                   priority
                 />

@@ -10,6 +10,9 @@ import toast from "react-hot-toast";
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  /** `null` until the client knows if a session exists */
+  isAuthed: boolean | null;
+  loginHref: string;
 }
 
 const menuItems = [
@@ -60,7 +63,7 @@ const socialLinks = [
   },
 ];
 
-export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
+export const MobileDrawer = ({ isOpen, onClose, isAuthed, loginHref }: MobileDrawerProps) => {
   const prefersReducedMotion = useReducedMotion();
   const pathname = usePathname();
   const router = useRouter();
@@ -170,7 +173,7 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
-            className="fixed top-0 left-0 bottom-0 h-[100vh] w-[85%] max-w-[400px] bg-white z-50 shadow-2xl lg:hidden flex flex-col"
+            className="fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[85%] max-w-[400px] min-w-0 flex-col bg-white shadow-2xl lg:hidden pt-[env(safe-area-inset-top,0px)]"
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
@@ -179,96 +182,103 @@ export const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
               ease: [0.25, 0.46, 0.45, 0.94],
             }}
           >
-            {/* Header with Logo and Close Button */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div className="flex items-center">
-                <div className="relative w-36 h-11">
+            {/* Header — fixed height, never scrolls away */}
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 sm:px-6 sm:py-5">
+              <Link href="/" className="flex items-center min-w-0" onClick={onClose}>
+                <div className="relative h-10 w-32 shrink-0 sm:h-11 sm:w-36">
                   <Image
                     src="/Images/Shefle-Logo.png"
                     alt="Shefle Logo"
                     fill
-                    className="object-contain"
+                    className="object-contain object-left"
                   />
                 </div>
-              </div>
+              </Link>
               <button
+                type="button"
                 onClick={onClose}
-                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 active:text-gray-800 transition-colors"
+                className="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 active:bg-gray-200"
                 aria-label="Close menu"
               >
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Menu Items */}
-            <nav className="flex-1 overflow-y-auto py-3">
-              <ul className="space-y-1">
-                {menuItems.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        className={`block px-6 py-4 text-[17px] font-normal transition-all ${
-                          isActive
-                            ? "text-red-800 font-semibold bg-red-50/80"
-                            : "text-gray-700 hover:bg-gray-50 active:bg-gray-100"
-                        }`}
-                        onClick={onClose}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+            {/* Everything below scrolls so short viewports never clip links or footer */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+              <nav aria-label="Main">
+                <ul className="divide-y divide-gray-100">
+                  {menuItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={`block px-5 py-3.5 text-base font-medium transition-colors sm:px-6 sm:py-4 sm:text-[17px] ${
+                            isActive
+                              ? "bg-red-50/90 font-semibold text-red-800"
+                              : "text-gray-800 hover:bg-gray-50 active:bg-gray-100"
+                          }`}
+                          onClick={onClose}
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
 
-              {/* Logout Button */}
-              <div className="px-6 pt-8 pb-6">
-                <button 
-                  onClick={handleLogout}
-                  className="w-full px-6 py-4 text-red-800 text-[17px] font-semibold bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 active:bg-red-200 transition-all"
-                >
-                  Logout
-                </button>
+              <div className="px-5 py-5 sm:px-6">
+                {isAuthed === null ? (
+                  <div
+                    className="h-[52px] w-full animate-pulse rounded-xl bg-gray-100 sm:h-14"
+                    aria-hidden
+                  />
+                ) : isAuthed ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-base font-semibold text-red-800 transition-colors hover:bg-red-100 active:bg-red-200 sm:py-4 sm:text-[17px]"
+                  >
+                    Log out
+                  </button>
+                ) : (
+                  <Link
+                    href={loginHref}
+                    onClick={onClose}
+                    className="flex w-full items-center justify-center rounded-xl border border-red-800 bg-red-800 px-4 py-3.5 text-base font-semibold text-white transition-colors hover:bg-red-900 active:bg-red-950 sm:py-4 sm:text-[17px]"
+                  >
+                    Log in
+                  </Link>
+                )}
               </div>
-            </nav>
 
-            {/* Footer - Pinned to Bottom */}
-            <div className="px-6 py-6 border-t border-gray-200 bg-white">
-              {/* Brand block */}
-              <div className="mb-5">
-                <div className="flex items-center mb-2">
-                  <div className="relative w-32 h-10">
-                    <Image
-                      src="/Images/Shefle-Logo.png"
-                      alt="Shefle Logo"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
-                <p className="text-[13px] text-gray-600 leading-relaxed">
+              <div
+                className="border-t border-gray-200 bg-gray-50/50 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] pt-6 sm:px-6"
+              >
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">
+                  About Shefle
+                </p>
+                <p className="text-sm leading-relaxed text-gray-600">
                   Brand protection and intellectual property monitoring for businesses and creators worldwide.
                 </p>
-              </div>
-
-              {/* Social icons */}
-              <div className="flex items-center gap-5">
-                {socialLinks.map((social) => (
-                  <a
-                    key={social.label}
-                    href={social.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-gray-600 active:text-gray-800 transition-colors"
-                    aria-label={social.label}
-                  >
-                    {social.icon}
-                  </a>
-                ))}
+                <div className="mt-5 flex flex-wrap items-center gap-4">
+                  {socialLinks.map((social) => (
+                    <a
+                      key={social.label}
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 transition-colors hover:text-red-800 active:text-red-900"
+                      aria-label={social.label}
+                    >
+                      {social.icon}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>

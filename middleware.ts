@@ -1,10 +1,15 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/about', '/pricing', '/blog', '/docs', '/contact'];
+const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/about', '/pricing', '/blog', '/docs'];
 
 function isPublicRoute(pathname: string) {
   return publicRoutes.some(route => pathname.startsWith(route));
+}
+
+/** Landing page only — other app routes require sign-in (see middleware below). */
+function isPublicHome(pathname: string) {
+  return pathname === '/' || pathname === '';
 }
 
 export async function middleware(request: NextRequest) {
@@ -23,7 +28,11 @@ export async function middleware(request: NextRequest) {
         'Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY'
       );
 
-      if (isPublicRoute(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/api')) {
+      if (
+        isPublicRoute(request.nextUrl.pathname) ||
+        request.nextUrl.pathname.startsWith('/api') ||
+        isPublicHome(request.nextUrl.pathname)
+      ) {
         return supabaseResponse;
       }
 
@@ -69,8 +78,12 @@ export async function middleware(request: NextRequest) {
       // Continue without user if auth fails
     }
 
-    // Allow public routes and API routes
-    if (isPublicRoute(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/api')) {
+    // Allow public routes, API routes, and unauthenticated home landing
+    if (
+      isPublicRoute(request.nextUrl.pathname) ||
+      request.nextUrl.pathname.startsWith('/api') ||
+      (!user && isPublicHome(request.nextUrl.pathname))
+    ) {
       return supabaseResponse;
     }
 
@@ -110,7 +123,7 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // Redirect to login if not authenticated (for all other routes including homepage)
+    // Redirect to login if not authenticated (protected app routes; home is allowed above)
     if (!user) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = '/login';
@@ -122,7 +135,11 @@ export async function middleware(request: NextRequest) {
   } catch (error) {
     console.error('Unhandled middleware error:', error);
     // Never hard-fail middleware in production; degrade gracefully.
-    if (isPublicRoute(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/api')) {
+    if (
+      isPublicRoute(request.nextUrl.pathname) ||
+      request.nextUrl.pathname.startsWith('/api') ||
+      isPublicHome(request.nextUrl.pathname)
+    ) {
       return NextResponse.next({ request });
     }
     const redirectUrl = request.nextUrl.clone();

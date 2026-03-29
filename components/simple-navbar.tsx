@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { MenuIcon } from "@/components/icons";
 import { MobileDrawer } from "@/components/mobile-drawer";
+import { useSessionUser } from "@/hooks/use-session-user";
 import toast from "react-hot-toast";
 
 const navLinks = [
@@ -21,6 +22,12 @@ export const SimpleNavbar = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { isAuthed } = useSessionUser();
+
+  const loginHref =
+    pathname && pathname !== "/login"
+      ? `/login?redirect=${encodeURIComponent(pathname)}`
+      : "/login";
 
   const handleCloseDrawer = useCallback(() => {
     setIsDrawerOpen(false);
@@ -46,31 +53,27 @@ export const SimpleNavbar = () => {
     <>
       <nav className="w-full bg-white border-b border-gray-200">
         <div className="mx-auto max-w-[1600px] px-4 lg:px-6">
-          <div className="relative flex items-center justify-between h-16 lg:h-20">
-            {/* Left side: hamburger (mobile) + logo */}
-            <div className="flex items-center gap-4">
-              {/* Hamburger - Mobile only */}
-              <button
-                aria-label="Menu"
-                className="p-2 -ml-2 text-gray-700 hover:text-gray-900 transition-colors lg:hidden"
-                onClick={() => setIsDrawerOpen(true)}
-              >
-                <MenuIcon size={24} />
-              </button>
-              
-              {/* Logo */}
-              <Link href="/" className="flex items-center">
-                <div className="relative w-40 h-12">
-                  <Image
-                    src="/Images/Shefle-Logo.png"
-                    alt="Shefle Logo"
-                    fill
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-              </Link>
-            </div>
+          <div className="relative flex w-full items-center justify-between h-16 lg:h-20">
+            {/* Mobile: menu left, logo right (separate flex items). Desktop: logo stays first column. */}
+            <button
+              aria-label="Menu"
+              className="p-2 -ml-2 text-gray-700 hover:text-gray-900 transition-colors lg:hidden"
+              onClick={() => setIsDrawerOpen(true)}
+            >
+              <MenuIcon size={24} />
+            </button>
+
+            <Link href="/" className="flex items-center max-lg:-mr-1">
+              <div className="relative w-36 h-11 sm:w-40 sm:h-12">
+                <Image
+                  src="/Images/Shefle-Logo.png"
+                  alt="Shefle Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+            </Link>
 
             {/* Center: Desktop Navigation Links */}
             <div className="hidden lg:flex items-center gap-7 absolute left-1/2 -translate-x-1/2">
@@ -95,11 +98,11 @@ export const SimpleNavbar = () => {
               })}
             </div>
             
-            {/* Right side: Profile + Logout buttons (desktop only) */}
+            {/* Right side: Profile + Log in / Log out (desktop only) */}
             <div className="hidden lg:flex items-center gap-4">
               <div className="w-px h-6 bg-gray-300"></div>
               <Link
-                href="/profile"
+                href={isAuthed === false ? loginHref : "/profile"}
                 className="flex items-center gap-2 px-5 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -107,22 +110,45 @@ export const SimpleNavbar = () => {
                 </svg>
                 <span className="text-[15px] font-medium">Profile</span>
               </Link>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-5 py-2.5 text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                <span className="text-[15px] font-medium">Logout</span>
-              </button>
+              {isAuthed === null ? (
+                <div
+                  className="h-10 w-[118px] animate-pulse rounded-full bg-gray-100"
+                  aria-hidden
+                />
+              ) : isAuthed ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-5 py-2.5 text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  <span className="text-[15px] font-medium">Log out</span>
+                </button>
+              ) : (
+                <Link
+                  href={loginHref}
+                  className="flex items-center gap-2 px-5 py-2.5 text-white bg-red-800 border border-red-800 rounded-full hover:bg-red-900 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  <span className="text-[15px] font-medium">Log in</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>
       </nav>
 
       {/* Mobile Drawer */}
-      <MobileDrawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} />
+      <MobileDrawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        isAuthed={isAuthed}
+        loginHref={loginHref}
+      />
     </>
   );
 };

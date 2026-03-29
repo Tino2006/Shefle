@@ -211,18 +211,25 @@ export default function MonitorPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <Link href="/" className="text-red-800 hover:text-red-900 font-semibold text-sm mb-2 inline-block">
-                ← Back to Home
-              </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Brand Monitor</h1>
-              <p className="text-gray-600 mt-1">Track similar trademarks to your brands</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
+          <Link
+            href="/"
+            className="inline-block text-sm font-semibold text-red-800 hover:text-red-900"
+          >
+            ← Back to Home
+          </Link>
+
+          <div className="mt-3 flex flex-col gap-4 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Brand Monitor</h1>
+              <p className="mt-1 text-sm text-gray-600 sm:text-base">
+                Track similar trademarks to your brands
+              </p>
             </div>
             <button
+              type="button"
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="px-6 py-3 text-white text-base font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors"
+              className="w-full shrink-0 rounded-lg bg-red-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900 sm:w-auto sm:px-6 sm:py-3 sm:text-base"
             >
               {showCreateForm ? 'Cancel' : '+ Create Monitor'}
             </button>
@@ -230,14 +237,14 @@ export default function MonitorPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
         {/* Create Form */}
         {showCreateForm && (
-          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Monitor</h2>
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 sm:mb-8 sm:p-6">
+            <h2 className="mb-3 text-lg font-bold text-gray-900 sm:mb-4 sm:text-xl">Create New Monitor</h2>
             <form onSubmit={handleCreateWatchlist} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 sm:mb-2">
                   Brand Name to Monitor
                 </label>
                 <input
@@ -245,16 +252,16 @@ export default function MonitorPage() {
                   value={newQuery}
                   onChange={(e) => setNewQuery(e.target.value)}
                   placeholder="Enter brand name..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20 sm:px-4 sm:py-3"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 sm:mb-2">
                   Similarity Threshold: {(newThreshold * 100).toFixed(0)}%
                 </label>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
                   <input
                     type="range"
                     min="0.3"
@@ -262,42 +269,42 @@ export default function MonitorPage() {
                     step="0.05"
                     value={newThreshold}
                     onChange={(e) => setNewThreshold(parseFloat(e.target.value))}
-                    className="flex-1"
+                    className="h-2 w-full min-w-0 flex-1 cursor-pointer accent-red-800"
                   />
-                  <div className="flex gap-2">
+                  <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto md:shrink-0 md:gap-2">
                     <button
                       type="button"
                       onClick={() => setNewThreshold(0.8)}
-                      className={`px-3 py-1 text-xs rounded ${newThreshold === 0.8 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
+                      className={`rounded-md px-2 py-2 text-center text-[11px] font-medium leading-tight sm:px-3 sm:py-1 sm:text-xs ${newThreshold === 0.8 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
                     >
                       High (80%)
                     </button>
                     <button
                       type="button"
                       onClick={() => setNewThreshold(0.6)}
-                      className={`px-3 py-1 text-xs rounded ${newThreshold === 0.6 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
+                      className={`rounded-md px-2 py-2 text-center text-[11px] font-medium leading-tight sm:px-3 sm:py-1 sm:text-xs ${newThreshold === 0.6 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
                     >
                       Medium (60%)
                     </button>
                     <button
                       type="button"
                       onClick={() => setNewThreshold(0.4)}
-                      className={`px-3 py-1 text-xs rounded ${newThreshold === 0.4 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
+                      className={`rounded-md px-2 py-2 text-center text-[11px] font-medium leading-tight sm:px-3 sm:py-1 sm:text-xs ${newThreshold === 0.4 ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-700'}`}
                     >
                       Low (40%)
                     </button>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="mt-1.5 text-xs text-gray-500 sm:text-sm">
                   Higher thresholds = fewer but more relevant alerts
                 </p>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:gap-3 sm:pt-2">
                 <button
                   type="submit"
                   disabled={creating || !newQuery.trim()}
-                  className="px-6 py-2 text-white font-semibold bg-red-800 rounded-lg hover:bg-red-900 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="w-full rounded-lg bg-red-800 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto sm:px-6 sm:py-2"
                 >
                   {creating ? 'Creating...' : 'Create Monitor'}
                 </button>
@@ -308,7 +315,7 @@ export default function MonitorPage() {
                     setNewQuery("");
                     setNewThreshold(0.6);
                   }}
-                  className="px-6 py-2 text-gray-700 font-semibold bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
                 >
                   Cancel
                 </button>
