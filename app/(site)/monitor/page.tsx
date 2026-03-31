@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
 
 interface Watchlist {
   id: string;
   query: string;
+  has_image: boolean;
   min_similarity: number;
   status_filter: string;
   class_filter: number[] | null;
@@ -32,17 +33,32 @@ interface WatchlistHit {
   first_seen_at: string;
 }
 
+interface VisualHit {
+  id: string;
+  watchlist_id: string;
+  watchlist_query: string;
+  image_url: string;
+  page_url: string | null;
+  entity_label: string | null;
+  source: string;
+  similarity_score: number;
+  first_seen_at: string;
+}
+
 interface CheckResult {
   success: boolean;
   checked_at: string;
   total_matches: number;
   new_hits: number;
   existing_hits: number;
+  visual_matches?: number;
+  new_visual_hits?: number;
 }
 
 export default function MonitorPage() {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
   const [hits, setHits] = useState<WatchlistHit[]>([]);
+  const [visualHits, setVisualHits] = useState<VisualHit[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState<{ [key: string]: boolean }>({});
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -53,7 +69,10 @@ export default function MonitorPage() {
   // Form state
   const [newQuery, setNewQuery] = useState("");
   const [newThreshold, setNewThreshold] = useState(0.6);
+  const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -62,14 +81,14 @@ export default function MonitorPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Build hits URL with filter
       const hitsUrl = reviewStatusFilter === 'ALL' 
         ? '/api/watchlists/hits'
         : `/api/watchlists/hits?review_status=${reviewStatusFilter}`;
 
-      const [watchlistsRes, hitsRes] = await Promise.all([
+      const [watchlistsRes, hitsRes, visualHitsRes] = await Promise.all([
         fetch('/api/watchlists'),
         fetch(hitsUrl),
+        fetch('/api/watchlists/visual-hits'),
       ]);
 
       if (watchlistsRes.ok) {
@@ -80,6 +99,11 @@ export default function MonitorPage() {
       if (hitsRes.ok) {
         const hitsData = await hitsRes.json();
         setHits(hitsData.hits || []);
+      }
+
+      if (visualHitsRes.ok) {
+        const visualHitsData = await visualHitsRes.json();
+        setVisualHits(visualHitsData.hits || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -97,11 +121,15 @@ export default function MonitorPage() {
 
       if (response.ok) {
         const result: CheckResult = await response.json();
+        const visualLine = result.visual_matches != null
+          ? `\nVisual matches: ${result.visual_matches} (${result.new_visual_hits ?? 0} new)`
+          : '';
         alert(
           `Check complete!\n\n` +
           `Total matches: ${result.total_matches}\n` +
           `New alerts: ${result.new_hits}\n` +
-          `Existing alerts: ${result.existing_hits}`
+          `Existing alerts: ${result.existing_hits}` +
+          visualLine
         );
         // Reload data to show updated last_checked_at and new hits
         loadData();
@@ -130,6 +158,7 @@ export default function MonitorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: newQuery.trim(),
+          image_base64: newImageBase64,
           min_similarity: newThreshold,
           status_filter: 'ACTIVE,PENDING',
         }),
@@ -138,6 +167,8 @@ export default function MonitorPage() {
       if (response.ok) {
         setNewQuery("");
         setNewThreshold(0.6);
+        setNewImageBase64(null);
+        setNewImagePreview(null);
         setShowCreateForm(false);
         loadData();
       } else {
@@ -207,6 +238,43 @@ export default function MonitorPage() {
     }
   };
 
+  const getSimilarityColor = (score: number) => {
+    if (score >= 0.9) return 'text-red-600';
+    if (score >= 0.8) return 'text-orange-600';
+    if (score >= 0.7) return 'text-yellow-600';
+    return 'text-green-600';
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a PNG, JPG, or WEBP image.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Image must be under 8MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setNewImagePreview(dataUrl);
+      const base64 = dataUrl.split(',')[1];
+      setNewImageBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setNewImageBase64(null);
+    setNewImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -254,6 +322,53 @@ export default function MonitorPage() {
                   placeholder="Enter brand name..."
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20 sm:px-4 sm:py-3"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 sm:mb-2">
+                  Logo Image <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Upload a logo to enable visual similarity monitoring via Google Vision + CLIP
+                </p>
+                {newImagePreview ? (
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                      <img
+                        src={newImagePreview}
+                        alt="Logo preview"
+                        className="w-full h-full object-contain p-1"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 transition-colors hover:border-red-300 hover:bg-red-50/30"
+                  >
+                    <div className="text-center">
+                      <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="mt-1 text-sm text-gray-600">Click to upload logo</p>
+                      <p className="text-xs text-gray-400">PNG, JPG, WEBP up to 8MB</p>
+                    </div>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={handleImageUpload}
+                  className="hidden"
                 />
               </div>
               
@@ -314,6 +429,7 @@ export default function MonitorPage() {
                     setShowCreateForm(false);
                     setNewQuery("");
                     setNewThreshold(0.6);
+                    clearImage();
                   }}
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
                 >
@@ -329,6 +445,72 @@ export default function MonitorPage() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-800"></div>
           </div>
         ) : (
+          <>
+          {/* Visual Matches Section */}
+          {visualHits.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Visual Matches ({visualHits.length})</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Images found on the web that are visually similar to your monitored logos (ranked by CLIP embedding similarity)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {visualHits.slice(0, 12).map((match) => (
+                  <div
+                    key={match.id}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-4 hover:shadow-lg transition-all hover:border-blue-300"
+                  >
+                    <div className="relative w-full aspect-square mb-3 bg-gray-100 rounded overflow-hidden">
+                      <img
+                        src={match.image_url}
+                        alt={match.entity_label || 'Similar image'}
+                        className="w-full h-full object-contain p-2"
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400 text-sm">Image unavailable</div>';
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-500 uppercase">
+                          {match.source === 'fullMatch' && 'Full Match'}
+                          {match.source === 'partialMatch' && 'Partial'}
+                          {match.source === 'visuallySimilar' && 'Similar'}
+                        </span>
+                        <span className={`text-xl font-bold ${getSimilarityColor(match.similarity_score)}`}>
+                          {(match.similarity_score * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Monitor: <span className="font-medium text-gray-700">{match.watchlist_query}</span>
+                      </p>
+                      {match.entity_label && (
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {match.entity_label}
+                        </p>
+                      )}
+                      {match.page_url && (
+                        <a
+                          href={match.page_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 truncate block hover:underline"
+                        >
+                          View source &rarr;
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Watched Brands */}
             <div>
@@ -355,13 +537,27 @@ export default function MonitorPage() {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg font-bold text-gray-900 mb-1">
-                            {watchlist.query}
-                          </h3>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-lg font-bold text-gray-900">
+                              {watchlist.query}
+                            </h3>
+                            {watchlist.has_image && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 border border-blue-200">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Visual
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 text-sm text-gray-600">
                             <span>Threshold: {(watchlist.min_similarity * 100).toFixed(0)}%</span>
                             <span>•</span>
                             <span>Status: {watchlist.status_filter}</span>
+                            {watchlist.has_image && visualHits.filter(v => v.watchlist_id === watchlist.id).length > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-blue-700">{visualHits.filter(v => v.watchlist_id === watchlist.id).length} visual matches</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -566,6 +762,7 @@ export default function MonitorPage() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
     </div>

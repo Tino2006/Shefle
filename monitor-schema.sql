@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.watchlists (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   query TEXT NOT NULL,
+  image_base64 TEXT DEFAULT NULL,
   min_similarity NUMERIC(3,2) NOT NULL DEFAULT 0.60 CHECK (min_similarity >= 0.0 AND min_similarity <= 1.0),
   status_filter TEXT NOT NULL DEFAULT 'ACTIVE,PENDING',
   class_filter INTEGER[] DEFAULT NULL,
@@ -16,6 +17,9 @@ CREATE TABLE IF NOT EXISTS public.watchlists (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.watchlists
+  ADD COLUMN IF NOT EXISTS image_base64 TEXT DEFAULT NULL;
 
 -- Index for user queries
 CREATE INDEX IF NOT EXISTS idx_watchlists_user_id 
@@ -57,11 +61,40 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_hits_watchlist_first_seen
   ON public.watchlist_hits(watchlist_id, first_seen_at DESC);
 
 -- =====================================================
+-- WATCHLIST VISUAL HITS TABLE
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.watchlist_visual_hits (
+  id BIGSERIAL PRIMARY KEY,
+  watchlist_id BIGINT NOT NULL REFERENCES public.watchlists(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  page_url TEXT,
+  entity_label TEXT,
+  source TEXT NOT NULL CHECK (source IN ('fullMatch', 'partialMatch', 'visuallySimilar')),
+  similarity_score NUMERIC(5,3) NOT NULL,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(watchlist_id, image_url)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_visual_hits_watchlist_id
+  ON public.watchlist_visual_hits(watchlist_id);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_visual_hits_similarity
+  ON public.watchlist_visual_hits(similarity_score DESC);
+
+-- =====================================================
 -- RLS POLICIES
 -- =====================================================
 
 ALTER TABLE public.watchlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.watchlist_hits ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own watchlists" ON public.watchlists;
+DROP POLICY IF EXISTS "Users can insert their own watchlists" ON public.watchlists;
+DROP POLICY IF EXISTS "Users can update their own watchlists" ON public.watchlists;
+DROP POLICY IF EXISTS "Users can delete their own watchlists" ON public.watchlists;
+DROP POLICY IF EXISTS "Users can view hits for their watchlists" ON public.watchlist_hits;
+DROP POLICY IF EXISTS "Users can view visual hits for their watchlists" ON public.watchlist_visual_hits;
 
 -- Users can only see their own watchlists
 CREATE POLICY "Users can view their own watchlists" 
@@ -89,6 +122,16 @@ CREATE POLICY "Users can view hits for their watchlists"
     )
   );
 
+ALTER TABLE public.watchlist_visual_hits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view visual hits for their watchlists"
+  ON public.watchlist_visual_hits FOR SELECT
+  USING (
+    watchlist_id IN (
+      SELECT id FROM public.watchlists WHERE user_id = auth.uid()
+    )
+  );
+
 -- Service role can insert hits (done via API)
 -- Regular users cannot directly insert/update/delete hits
 
@@ -105,6 +148,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to automatically update updated_at on watchlists
+DROP TRIGGER IF EXISTS update_watchlists_updated_at ON public.watchlists;
 CREATE TRIGGER update_watchlists_updated_at 
   BEFORE UPDATE ON public.watchlists 
   FOR EACH ROW 
@@ -120,3 +164,6 @@ COMMENT ON COLUMN public.watchlists.min_similarity IS 'Minimum similarity score 
 COMMENT ON COLUMN public.watchlists.status_filter IS 'Comma-separated status values to monitor (e.g., "ACTIVE,PENDING")';
 COMMENT ON COLUMN public.watchlists.class_filter IS 'Array of NICE class numbers to filter by (NULL = all classes)';
 COMMENT ON COLUMN public.watchlist_hits.risk_level IS 'Calculated risk level based on similarity score';
+COMMENT ON COLUMN public.watchlists.image_base64 IS 'Base64-encoded logo image for visual similarity monitoring';
+COMMENT ON TABLE public.watchlist_visual_hits IS 'Visual image matches found via Google Vision + CLIP for each watchlist';
+COMMENT ON COLUMN public.watchlist_visual_hits.source IS 'Vision match type: fullMatch, partialMatch, or visuallySimilar';

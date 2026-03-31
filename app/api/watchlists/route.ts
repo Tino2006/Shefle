@@ -11,6 +11,7 @@ import { z } from 'zod';
 // Create watchlist schema
 const createWatchlistSchema = z.object({
   query: z.string().min(2, 'Query must be at least 2 characters'),
+  image_base64: z.string().nullable().optional(),
   min_similarity: z.number().min(0).max(1).default(0.6),
   status_filter: z.string().default('ACTIVE,PENDING'),
   class_filter: z.array(z.number().int().min(1).max(45)).nullable().optional(),
@@ -20,6 +21,7 @@ interface Watchlist {
   id: string;
   user_id: string;
   query: string;
+  has_image: boolean;
   min_similarity: number;
   status_filter: string;
   class_filter: number[] | null;
@@ -51,18 +53,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { query, min_similarity, status_filter, class_filter } = validated.data;
+    const { query, image_base64, min_similarity, status_filter, class_filter } = validated.data;
 
-    // Insert watchlist
     const result = await queryOne<Watchlist>(
       `
         INSERT INTO public.watchlists 
-          (user_id, query, min_similarity, status_filter, class_filter)
-        VALUES ($1, $2, $3, $4, $5)
+          (user_id, query, image_base64, min_similarity, status_filter, class_filter)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING 
           id::text, 
           user_id::text, 
           query, 
+          (image_base64 IS NOT NULL) AS has_image,
           min_similarity, 
           status_filter, 
           class_filter,
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest) {
           created_at::text,
           updated_at::text
       `,
-      [mockUserId, query, min_similarity, status_filter, class_filter || null]
+      [mockUserId, query, image_base64 || null, min_similarity, status_filter, class_filter || null]
     );
 
     if (!result) {
@@ -106,6 +108,7 @@ export async function GET(request: NextRequest) {
           id::text,
           user_id::text,
           query,
+          (image_base64 IS NOT NULL) AS has_image,
           min_similarity,
           status_filter,
           class_filter,
