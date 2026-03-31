@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     let emailsSent = 0;
     const fallbackEmail = process.env.MONITOR_ALERT_TO_EMAIL;
 
-    for (const [userId, items] of byUser.entries()) {
+    for (const [userId, items] of Array.from(byUser.entries())) {
       const user = await queryOne<UserEmailRow>(
         `
           SELECT
