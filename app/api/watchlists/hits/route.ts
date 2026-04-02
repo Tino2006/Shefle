@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { queryRows } from '@/lib/db/postgres';
 
 /**
@@ -31,8 +32,12 @@ interface WatchlistHitWithDetails {
 
 export async function GET(request: NextRequest) {
   try {
-    // For MVP, we'll use a mock user_id
-    const mockUserId = '00000000-0000-0000-0000-000000000001';
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     // Build WHERE clauses
     const whereClauses = ['w.user_id = $1'];
-    const queryParams: any[] = [mockUserId];
+    const queryParams: any[] = [user.id];
     let paramIndex = 2;
 
     if (watchlistId) {

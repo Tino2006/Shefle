@@ -45,6 +45,19 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+    } else if (fileType === 'portfolio-logo') {
+      if (!file.type.startsWith('image/')) {
+        return NextResponse.json(
+          { error: 'Portfolio logo must be an image (PNG, JPG, WEBP, etc.)' },
+          { status: 400 }
+        );
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'Portfolio logo must be under 8MB' },
+          { status: 400 }
+        );
+      }
     }
 
     // Generate unique filename

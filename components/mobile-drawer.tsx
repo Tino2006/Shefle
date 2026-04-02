@@ -17,6 +17,7 @@ interface MobileDrawerProps {
 
 const menuItems = [
   { label: "Home", href: "/" },
+  { label: "Portfolio", href: "/portfolio" },
   { label: "Monitor", href: "/monitor" },
   { label: "Register", href: "/register" },
   { label: "Contact Us", href: "/contact" },

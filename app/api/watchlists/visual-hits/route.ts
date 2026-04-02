@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { queryRows } from '@/lib/db/postgres';
 
 /**
@@ -21,10 +22,16 @@ interface VisualHit {
 
 export async function GET(request: NextRequest) {
   try {
-    const mockUserId = '00000000-0000-0000-0000-000000000001';
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const watchlistId = request.nextUrl.searchParams.get('watchlist_id');
 
-    const params: any[] = [mockUserId];
+    const params: any[] = [user.id];
     let whereClause = '';
 
     if (watchlistId) {

@@ -1,0 +1,82 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { queryOne, query } from '@/lib/db/postgres';
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const trademark = await queryOne(
+      `SELECT
+        id::text,
+        user_id::text,
+        registration_number,
+        country,
+        niche_class,
+        registration_date::text,
+        logo_url,
+        mark_name,
+        created_at::text,
+        updated_at::text
+      FROM public.portfolio_trademarks
+      WHERE id = $1 AND user_id = $2`,
+      [id, user.id]
+    );
+
+    if (!trademark) {
+      return NextResponse.json({ error: 'Trademark not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, trademark });
+  } catch (error) {
+    console.error('Get portfolio trademark error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch portfolio trademark', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const result = await query(
+      `DELETE FROM public.portfolio_trademarks
+      WHERE id = $1 AND user_id = $2`,
+      [id, user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Trademark not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Delete portfolio trademark error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete portfolio trademark', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
