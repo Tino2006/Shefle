@@ -7,6 +7,7 @@ import { SearchIcon } from "@/components/icons";
 import { generateCandidateQueries } from "@/lib/queryGeneration";
 
 interface TrademarkResult {
+  office?: string;
   serial_number: string;
   owner_country?: string | null;
   registration_number: string | null;
@@ -258,6 +259,13 @@ export default function SearchPage() {
     }
   };
 
+  const getOfficeBadge = (office?: string) => {
+    if (office === 'IP_AU') {
+      return { label: 'AU', className: 'bg-blue-100 text-blue-800 border-blue-200' };
+    }
+    return { label: 'US', className: 'bg-slate-100 text-slate-800 border-slate-200' };
+  };
+
   const getSimilarityColor = (score: number) => {
     if (score >= 0.8) return "text-red-700";
     if (score >= 0.6) return "text-amber-700";
@@ -352,6 +360,25 @@ export default function SearchPage() {
     { key: "LOW", label: "LOW similarity" },
   ];
 
+  const sourceSummary = useMemo(() => {
+    const counts = results.reduce(
+      (acc, item) => {
+        if (item.office === 'IP_AU') {
+          acc.au += 1;
+        } else {
+          acc.us += 1;
+        }
+        return acc;
+      },
+      { us: 0, au: 0 }
+    );
+
+    return [
+      { key: 'USPTO', label: 'USPTO (US)', count: counts.us, className: 'bg-slate-100 text-slate-800 border-slate-200' },
+      { key: 'IP_AU', label: 'IP Australia (AU)', count: counts.au, className: 'bg-blue-100 text-blue-800 border-blue-200' },
+    ];
+  }, [results]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -426,10 +453,30 @@ export default function SearchPage() {
                 : 'No results found'}
             </h2>
             {(results.length > 0 || visualMatches.length > 0) && (
-              <p className="text-gray-600 mt-1">
-                Showing results for &quot;{searchParams.get("query")}&quot;
-                {isMultiSearch && " (multi-stage search)"}
-              </p>
+              <>
+                <p className="text-gray-600 mt-1">
+                  Showing results for &quot;{searchParams.get("query")}&quot;
+                  {isMultiSearch && " (multi-stage search)"}
+                </p>
+                {results.length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Data sources</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sourceSummary
+                        .filter((source) => source.count > 0)
+                        .map((source) => (
+                          <span
+                            key={source.key}
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${source.className}`}
+                          >
+                            {source.label}
+                            <span className="text-[11px] opacity-80">({source.count})</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -551,6 +598,9 @@ export default function SearchPage() {
                                 <h3 className="text-xl font-bold text-gray-900">
                                   {result.mark_text || 'N/A'}
                                 </h3>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getOfficeBadge(result.office).className}`}>
+                                  {getOfficeBadge(result.office).label}
+                                </span>
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(result.risk_level)}`}>
                                   {result.risk_level.replace('_', ' ')}
                                 </span>

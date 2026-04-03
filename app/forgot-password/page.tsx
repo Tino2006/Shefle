@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -9,6 +9,16 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [cooldownSeconds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +34,17 @@ export default function ForgotPasswordPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfterSeconds =
+            typeof data.retryAfterSeconds === "number" && data.retryAfterSeconds > 0
+              ? data.retryAfterSeconds
+              : 60;
+          setCooldownSeconds(retryAfterSeconds);
+          throw new Error(
+            `Too many attempts. Please wait ${retryAfterSeconds}s before retrying.`
+          );
+        }
+
         throw new Error(data.error || "Failed to send reset email");
       }
 
@@ -47,7 +68,7 @@ export default function ForgotPasswordPage() {
                 src="/Images/Shefle-Logo.png"
                 alt="Shefle"
                 fill
-                className="object-contain"
+                className="object-contain mix-blend-multiply"
                 priority
               />
             </div>
@@ -96,7 +117,7 @@ export default function ForgotPasswordPage() {
               src="/Images/Shefle-Logo.png"
               alt="Shefle"
               fill
-              className="object-contain"
+              className="object-contain mix-blend-multiply"
               priority
             />
           </div>
@@ -138,10 +159,14 @@ export default function ForgotPasswordPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || cooldownSeconds > 0}
               className="w-full py-2.5 text-white text-sm font-semibold bg-red-800 rounded-md hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-800 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Sending..." : "Send reset link"}
+              {isLoading
+                ? "Sending..."
+                : cooldownSeconds > 0
+                ? `Try again in ${cooldownSeconds}s`
+                : "Send reset link"}
             </button>
 
             {/* Back to Login */}

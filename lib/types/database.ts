@@ -60,6 +60,7 @@ export type Brand = {
   poa_file_url: string;
   logo_file_url: string;
   business_license_url: string | null;
+  passport_file_url: string | null;
   status: 'pending' | 'under_review' | 'approved' | 'rejected';
   rejection_reason: string | null;
   reviewed_at: string | null;

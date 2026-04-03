@@ -137,6 +137,7 @@ CREATE TABLE public.brands (
   poa_file_url TEXT NOT NULL,
   logo_file_url TEXT NOT NULL,
   business_license_url TEXT,
+  passport_file_url TEXT,
   
   -- Status
   status TEXT CHECK (status IN ('pending', 'under_review', 'approved', 'rejected')) DEFAULT 'pending',

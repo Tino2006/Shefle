@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryRows } from '@/lib/db/postgres';
+import { searchIPAustralia } from '@/lib/ipaustralia/search';
+
+const IP_AU_ENABLED = process.env.IP_AU_ENABLED === 'true';
 
 /**
  * USPTO Trademark Search API
@@ -51,6 +54,7 @@ interface SearchResponse {
   query: string;
   count: number;
   results: TrademarkResult[];
+  warnings?: string[];
 }
 
 export async function GET(request: NextRequest) {
@@ -217,9 +221,6 @@ export async function GET(request: NextRequest) {
       queryParams.push(classNumbers);
     }
 
-    // Execute query
-    const rows = await queryRows<TrademarkRow>(sqlQuery, queryParams);
-
     // Function to calculate risk level based on final similarity score
     const calculateRiskLevel = (simFinal: number): 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' => {
       if (simFinal >= 0.8) return 'HIGH';
@@ -228,34 +229,70 @@ export async function GET(request: NextRequest) {
       return 'VERY_LOW';
     };
 
-    // Transform results to API response format
-    const results: TrademarkResult[] = rows.map(row => {
-      // Safely parse numeric values (they come back as strings from pg)
-      const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
-      const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
+    const usptoPromise = queryRows<TrademarkRow>(sqlQuery, queryParams).then((rows) =>
+      rows.map((row): TrademarkResult => {
+        const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
+        const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
 
-      return {
-        office: row.office,
-        serial_number: row.serial_number,
-        registration_number: row.registration_number,
-        mark_text: row.mark_text,
-        status_norm: row.status_norm,
-        owner_name: row.owner_name,
-        owner_country: row.owner_country,
-        filing_date: row.filing_date,
-        classes: row.classes || [],
-        sim_trgm: parseFloat(simTrgm.toFixed(3)),
-        sim_final: parseFloat(simFinal.toFixed(3)),
-        similarity_score: parseFloat(simFinal.toFixed(3)), // Legacy field uses final score
-        risk_level: calculateRiskLevel(simFinal),
-      };
-    });
+        return {
+          office: row.office,
+          serial_number: row.serial_number,
+          registration_number: row.registration_number,
+          mark_text: row.mark_text,
+          status_norm: row.status_norm,
+          owner_name: row.owner_name,
+          owner_country: row.owner_country,
+          filing_date: row.filing_date,
+          classes: row.classes || [],
+          sim_trgm: parseFloat(simTrgm.toFixed(3)),
+          sim_final: parseFloat(simFinal.toFixed(3)),
+          similarity_score: parseFloat(simFinal.toFixed(3)),
+          risk_level: calculateRiskLevel(simFinal),
+        };
+      })
+    );
+
+    const ipAuPromise = IP_AU_ENABLED
+      ? searchIPAustralia(query, {
+          maxDetails: 10,
+          statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
+        })
+      : Promise.resolve([]);
+
+    const [usptoResult, ipAuResult] = await Promise.allSettled([usptoPromise, ipAuPromise]);
+    const warnings: string[] = [];
+
+    const usptoResults = usptoResult.status === 'fulfilled' ? usptoResult.value : [];
+    if (usptoResult.status === 'rejected') {
+      throw usptoResult.reason;
+    }
+
+    const ipAuResults = ipAuResult.status === 'fulfilled' ? ipAuResult.value : [];
+    if (IP_AU_ENABLED && ipAuResult.status === 'rejected') {
+      console.error('IP Australia search error:', ipAuResult.reason);
+      warnings.push('IP Australia search is temporarily unavailable. Showing USPTO results only.');
+    }
+
+    const merged = [...usptoResults, ...ipAuResults];
+    const dedupedMap = new Map<string, TrademarkResult>();
+    for (const result of merged) {
+      const key = `${result.office}-${result.serial_number}`;
+      const existing = dedupedMap.get(key);
+      if (!existing || result.similarity_score > existing.similarity_score) {
+        dedupedMap.set(key, result);
+      }
+    }
+
+    const results = Array.from(dedupedMap.values())
+      .sort((a, b) => b.similarity_score - a.similarity_score)
+      .slice(0, limit);
 
     // Return response
     const response: SearchResponse = {
       query: query,
       count: results.length,
       results,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
 
     return NextResponse.json(response, {

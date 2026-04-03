@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -17,15 +18,30 @@ function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const code = useMemo(() => searchParams.get("code"), [searchParams]);
+  const tokenHash = useMemo(() => searchParams.get("token_hash"), [searchParams]);
+  const otpType = useMemo(
+    () => searchParams.get("type") as EmailOtpType | null,
+    [searchParams]
+  );
 
   useEffect(() => {
     const prepareRecoverySession = async () => {
       try {
         // New links route through /auth/callback and arrive with a valid session.
         // Support old links that still include ?code=... on /reset-password.
+        const supabase = createClient();
+
         if (code) {
-          const supabase = createClient();
           const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            throw error;
+          }
+        } else if (tokenHash && otpType === "recovery") {
+          // Support links using token_hash/type query parameters.
+          const { error } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          });
           if (error) {
             throw error;
           }
@@ -40,7 +56,7 @@ function ResetPasswordForm() {
     };
 
     prepareRecoverySession();
-  }, [code]);
+  }, [code, otpType, tokenHash]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

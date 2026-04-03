@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryRows } from '@/lib/db/postgres';
 import { generateCandidateQueries, deduplicateResults, rankResults } from '@/lib/queryGeneration';
+import { searchIPAustralia } from '@/lib/ipaustralia/search';
+
+const IP_AU_ENABLED = process.env.IP_AU_ENABLED === 'true';
 
 /**
  * Multi-Stage Trademark Search API
@@ -183,30 +186,64 @@ export async function POST(request: NextRequest) {
       const queryParams: any[] = [candidate, limit, statusValues];
 
       try {
-        const rows = await queryRows<TrademarkRow>(sqlQuery, queryParams);
+        const [usptoResult, ipAuResult] = await Promise.allSettled([
+          queryRows<TrademarkRow>(sqlQuery, queryParams),
+          IP_AU_ENABLED
+            ? searchIPAustralia(candidate, {
+                maxDetails: 5,
+                statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
+              })
+            : Promise.resolve([]),
+        ]);
 
-        // Transform and add to results
-        rows.forEach(row => {
-          const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
-          const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
+        if (usptoResult.status === 'fulfilled') {
+          usptoResult.value.forEach(row => {
+            const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
+            const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
 
-          allResults.push({
-            serial_number: row.serial_number,
-            office: row.office,
-            registration_number: row.registration_number,
-            mark_text: row.mark_text,
-            status_norm: row.status_norm,
-            owner_name: row.owner_name,
-            owner_country: row.owner_country,
-            filing_date: row.filing_date,
-            classes: row.classes || [],
-            sim_trgm: parseFloat(simTrgm.toFixed(3)),
-            sim_final: parseFloat(simFinal.toFixed(3)),
-            similarity_score: parseFloat(simFinal.toFixed(3)),
-            risk_level: calculateRiskLevel(simFinal),
-            matched_candidate: candidate,
+            allResults.push({
+              serial_number: row.serial_number,
+              office: row.office,
+              registration_number: row.registration_number,
+              mark_text: row.mark_text,
+              status_norm: row.status_norm,
+              owner_name: row.owner_name,
+              owner_country: row.owner_country,
+              filing_date: row.filing_date,
+              classes: row.classes || [],
+              sim_trgm: parseFloat(simTrgm.toFixed(3)),
+              sim_final: parseFloat(simFinal.toFixed(3)),
+              similarity_score: parseFloat(simFinal.toFixed(3)),
+              risk_level: calculateRiskLevel(simFinal),
+              matched_candidate: candidate,
+            });
           });
-        });
+        } else {
+          throw usptoResult.reason;
+        }
+
+        if (ipAuResult.status === 'fulfilled') {
+          ipAuResult.value.forEach((row) => {
+            allResults.push({
+              serial_number: row.serial_number,
+              office: row.office,
+              registration_number: row.registration_number,
+              mark_text: row.mark_text,
+              status_norm: row.status_norm,
+              owner_name: row.owner_name,
+              owner_country: row.owner_country,
+              filing_date: row.filing_date,
+              classes: row.classes || [],
+              sim_trgm: row.sim_trgm,
+              sim_final: row.sim_final,
+              similarity_score: row.similarity_score,
+              risk_level: row.risk_level,
+              matched_candidate: candidate,
+            });
+          });
+        } else if (IP_AU_ENABLED) {
+          console.error(`IP Australia search failed for candidate "${candidate}":`, ipAuResult.reason);
+        }
       } catch (err) {
         console.error(`Error searching for candidate "${candidate}":`, err);
       }

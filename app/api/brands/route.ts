@@ -17,6 +17,7 @@ const brandSchema = z.object({
   poaFileUrl: z.string().url(),
   logoFileUrl: z.string().url(),
   businessLicenseUrl: z.string().url().optional(),
+  passportFileUrl: z.string().url().optional(),
 });
 
 export async function POST(request: Request) {
@@ -50,6 +51,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (validatedData.registrationType === 'individual' && !validatedData.passportFileUrl) {
+      return NextResponse.json(
+        { error: 'Passport is required for individual registration' },
+        { status: 400 }
+      );
+    }
+
     // Insert brand registration
     const { data: brand, error } = await supabase
       .from('brands')
@@ -69,6 +77,7 @@ export async function POST(request: Request) {
         poa_file_url: validatedData.poaFileUrl,
         logo_file_url: validatedData.logoFileUrl,
         business_license_url: validatedData.businessLicenseUrl,
+        passport_file_url: validatedData.passportFileUrl,
         status: 'pending',
       })
       .select()

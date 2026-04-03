@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const fileType = formData.get('fileType') as string; // 'poa', 'logo', or 'license'
+    const fileType = formData.get('fileType') as string; // 'poa', 'logo', 'license', or 'passport'
 
     if (!file) {
       return NextResponse.json(
@@ -31,6 +31,16 @@ export async function POST(request: Request) {
       if (file.type !== 'application/pdf') {
         return NextResponse.json(
           { error: 'POA and Business License must be PDF files' },
+          { status: 400 }
+        );
+      }
+    } else if (fileType === 'passport') {
+      // Passport can be image or PDF
+      const isImage = file.type.startsWith('image/');
+      const isPDF = file.type === 'application/pdf';
+      if (!isImage && !isPDF) {
+        return NextResponse.json(
+          { error: 'Passport must be an image (PNG, JPG, etc.) or PDF file' },
           { status: 400 }
         );
       }

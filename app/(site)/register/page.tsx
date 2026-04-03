@@ -13,9 +13,11 @@ export default function RegisterPage() {
   const [poaFileName, setPoaFileName] = useState<string>("");
   const [logoFileName, setLogoFileName] = useState<string>("");
   const [licenseFileName, setLicenseFileName] = useState<string>("");
+  const [passportFileName, setPassportFileName] = useState<string>("");
   const [poaFile, setPoaFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePoaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,6 +38,13 @@ export default function RegisterPage() {
     if (e.target.files && e.target.files[0]) {
       setLicenseFileName(e.target.files[0].name);
       setLicenseFile(e.target.files[0]);
+    }
+  };
+
+  const handlePassportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPassportFileName(e.target.files[0].name);
+      setPassportFile(e.target.files[0]);
     }
   };
 
@@ -109,15 +118,26 @@ export default function RegisterPage() {
         return;
       }
 
+      if (registrationType === "individual" && !passportFile) {
+        toast.error("Please upload your passport");
+        setIsSubmitting(false);
+        return;
+      }
+
       // Upload files
       toast.loading("Uploading files...");
       
       const poaFileUrl = await uploadFile(poaFile, "poa");
       const logoFileUrl = await uploadFile(logoFile, "logo");
       let businessLicenseUrl: string | undefined;
+      let passportFileUrl: string | undefined;
 
       if (registrationType === "company" && licenseFile) {
         businessLicenseUrl = await uploadFile(licenseFile, "license");
+      }
+
+      if (registrationType === "individual" && passportFile) {
+        passportFileUrl = await uploadFile(passportFile, "passport");
       }
 
       toast.dismiss();
@@ -144,6 +164,7 @@ export default function RegisterPage() {
           poaFileUrl,
           logoFileUrl,
           businessLicenseUrl,
+          passportFileUrl,
         }),
       });
 
@@ -161,9 +182,11 @@ export default function RegisterPage() {
       setPoaFileName("");
       setLogoFileName("");
       setLicenseFileName("");
+      setPassportFileName("");
       setPoaFile(null);
       setLogoFile(null);
       setLicenseFile(null);
+      setPassportFile(null);
       setRegistrationType("individual");
 
       // Redirect to profile or success page after 2 seconds
@@ -493,6 +516,50 @@ export default function RegisterPage() {
                   </span>
                 </label>
                 <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB, PDF only.</p>
+              </div>
+            )}
+
+            {/* Upload Passport (Individual only) */}
+            {registrationType === "individual" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Upload Passport <span className="text-red-600">*</span>
+                </label>
+                {passportFileName && (
+                  <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm text-gray-700 flex-1">{passportFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPassportFileName("");
+                        setPassportFile(null);
+                      }}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={handlePassportFileChange}
+                  />
+                  <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Select file
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-2">Maximum file size: 10MB. Accepted formats: PNG, JPG, GIF, WebP, PDF</p>
               </div>
             )}
 
