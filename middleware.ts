@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/auth/confirm', '/about', '/pricing', '/blog', '/docs'];
 
 function isPublicRoute(pathname: string) {
+  if (pathname.startsWith('/auth')) return true;
   return publicRoutes.some(route => pathname.startsWith(route));
 }
 

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { sanitizeRedirectPath } from '@/lib/sanitize-redirect';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const tokenHash = requestUrl.searchParams.get('token_hash');
   const type = requestUrl.searchParams.get('type') as EmailOtpType | null;
-  const nextPath = requestUrl.searchParams.get('next') || '/';
-  const safeNext = nextPath.startsWith('/') ? nextPath : '/';
+  const safeNext = sanitizeRedirectPath(requestUrl.searchParams.get('next'), '/');
 
   if (!tokenHash || !type) {
     return NextResponse.redirect(new URL('/login?error=invalid_confirmation_link', requestUrl.origin));

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +11,6 @@ const REFERRAL_STORAGE_KEY = "shefle_signup_referral";
 
 export default function SignupForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [oauthProviderLoading, setOauthProviderLoading] = useState<"google" | "apple" | null>(null);
 
@@ -24,7 +23,8 @@ export default function SignupForm() {
   });
 
   useEffect(() => {
-    const fromQuery = searchParams.get("ref");
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("ref");
     if (fromQuery && fromQuery.trim()) {
       const v = fromQuery.trim().toUpperCase();
       setSignupForm((prev) => ({ ...prev, referralCode: v }));
@@ -34,7 +34,7 @@ export default function SignupForm() {
         /* ignore */
       }
     }
-  }, [searchParams]);
+  }, []);
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,12 +123,12 @@ export default function SignupForm() {
     <div className="w-full min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="relative inline-block w-32 h-10 mb-3">
+          <div className="relative inline-block w-52 h-16 mb-4">
             <Image
               src="/Images/Shefle-Logo.png"
               alt="Shefle"
               fill
-              className="object-contain"
+              className="object-contain mix-blend-multiply"
               priority
             />
           </div>

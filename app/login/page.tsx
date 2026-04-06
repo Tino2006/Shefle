@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { sanitizeRedirectPath } from "@/lib/sanitize-redirect";
 
 function LoginForm() {
   const router = useRouter();
@@ -52,10 +53,11 @@ function LoginForm() {
       toast.success("Login successful");
       
       // Redirect admins to admin panel, regular users to redirect param or home
-      const redirectTo = data.role === 'admin' 
-        ? '/admin' 
-        : (searchParams.get('redirect') || '/');
-      
+      const redirectTo =
+        data.role === "admin"
+          ? "/admin"
+          : sanitizeRedirectPath(searchParams.get("redirect"), "/");
+
       router.push(redirectTo);
       router.refresh();
     } catch (error: any) {
@@ -69,7 +71,7 @@ function LoginForm() {
     try {
       setOauthProviderLoading(true);
       const supabase = createClient();
-      const redirectTo = searchParams.get("redirect") || "/";
+      const redirectTo = sanitizeRedirectPath(searchParams.get("redirect"), "/");
       const callbackUrl = new URL("/auth/callback", window.location.origin);
       callbackUrl.searchParams.set("next", redirectTo);
 
