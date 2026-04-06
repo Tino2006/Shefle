@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+import { ensureProfileAfterSignup } from '@/lib/ensure-profile';
 import { getUserByReferralCode, normalizeReferralCode } from '@/lib/referral';
+import { createAuthRouteClient } from '@/lib/supabase/auth-route';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -10,6 +11,18 @@ const signUpSchema = z.object({
   lastName: z.string().min(1),
   referralCode: z.string().optional(),
 });
+
+/** Public URL for email confirmation links (must match Supabase Auth → Redirect URLs). */
+function getPublicAppUrl(request: Request): string {
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '');
+  if (fromEnv && !fromEnv.includes('localhost')) {
+    return fromEnv;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return new URL(request.url).origin;
+}
 
 export async function POST(request: Request) {
   try {
@@ -36,17 +49,11 @@ export async function POST(request: Request) {
       referralMeta = normalized;
     }
 
-    const supabase = await createClient();
-    const requestOrigin = new URL(request.url).origin;
-    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-    const appUrl =
-      configuredAppUrl && !configuredAppUrl.includes('localhost')
-        ? configuredAppUrl
-        : requestOrigin;
+    const supabase = createAuthRouteClient();
+    const appUrl = getPublicAppUrl(request);
 
     const emailRedirectTo = `${appUrl}/auth/confirm?next=${encodeURIComponent('/login?verified=1')}`;
 
-    // Sign up the user
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -63,7 +70,6 @@ export async function POST(request: Request) {
     if (error) {
       const isAlreadyRegistered = /already registered/i.test(error.message);
 
-      // If user retried signup with an unconfirmed account, resend confirmation email.
       if (isAlreadyRegistered) {
         const { error: resendError } = await supabase.auth.resend({
           type: 'signup',
@@ -93,6 +99,31 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
+      );
+    }
+
+    const userId = data.user?.id;
+    if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+      const ensured = await ensureProfileAfterSignup({
+        userId,
+        firstName,
+        lastName,
+        referralMeta,
+      });
+      if (!ensured.ok) {
+        console.error('[signup] ensureProfileAfterSignup failed:', ensured.error);
+        return NextResponse.json(
+          {
+            error:
+              'Account was created but your profile could not be saved. Please contact support or try again after confirming your email.',
+            detail: process.env.NODE_ENV === 'development' ? ensured.error : undefined,
+          },
+          { status: 500 }
+        );
+      }
+    } else if (userId && !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+      console.warn(
+        '[signup] SUPABASE_SERVICE_ROLE_KEY is not set; profile row must come from the auth.users trigger only.'
       );
     }
 
