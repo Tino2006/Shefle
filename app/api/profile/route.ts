@@ -1,3 +1,5 @@
+import type { ReferredUserSummary } from '@/lib/types/database';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -36,7 +38,37 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ profile });
+    const { data: referredRows, error: referredError } = await supabase
+      .from('profiles')
+      .select('id, created_at')
+      .eq('referred_by_user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    let referredUsers: ReferredUserSummary[] = [];
+    if (!referredError && referredRows?.length) {
+      const admin = createAdminClient();
+      referredUsers = await Promise.all(
+        referredRows.map(async (row) => {
+          const { data: authUser } = await admin.auth.admin.getUserById(row.id);
+          return {
+            id: row.id,
+            email: authUser?.user?.email ?? null,
+            created_at: row.created_at,
+          };
+        })
+      );
+    }
+
+    const referralCount = referredUsers.length;
+
+    return NextResponse.json({
+      profile,
+      referral: {
+        code: profile.referral_code ?? null,
+        referralCount,
+        referredUsers,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },

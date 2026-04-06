@@ -8,12 +8,22 @@ export type Profile = {
   phone: string | null;
   country: string | null;
   role: 'user' | 'admin';
+  /** Uppercase alphanumeric; set at signup, immutable */
+  referral_code?: string | null;
+  /** Present when this account was referred; immutable after signup */
+  referred_by_user_id?: string | null;
   notification_preferences: {
     email: boolean;
     sms: boolean;
   };
   created_at: string;
   updated_at: string;
+};
+
+export type ReferredUserSummary = {
+  id: string;
+  email: string | null;
+  created_at: string;
 };
 
 export type SubscriptionPlan = {

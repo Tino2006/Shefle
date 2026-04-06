@@ -3,8 +3,6 @@ import { queryRows } from '@/lib/db/postgres';
 import { generateCandidateQueries, deduplicateResults, rankResults } from '@/lib/queryGeneration';
 import { searchIPAustralia } from '@/lib/ipaustralia/search';
 
-const IP_AU_ENABLED = process.env.IP_AU_ENABLED === 'true';
-
 /**
  * Multi-Stage Trademark Search API
  * POST /api/trademarks/multi-search
@@ -188,12 +186,10 @@ export async function POST(request: NextRequest) {
       try {
         const [usptoResult, ipAuResult] = await Promise.allSettled([
           queryRows<TrademarkRow>(sqlQuery, queryParams),
-          IP_AU_ENABLED
-            ? searchIPAustralia(candidate, {
-                maxDetails: 5,
-                statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
-              })
-            : Promise.resolve([]),
+          searchIPAustralia(candidate, {
+            maxDetails: 5,
+            statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
+          }),
         ]);
 
         if (usptoResult.status === 'fulfilled') {
@@ -241,7 +237,7 @@ export async function POST(request: NextRequest) {
               matched_candidate: candidate,
             });
           });
-        } else if (IP_AU_ENABLED) {
+        } else {
           console.error(`IP Australia search failed for candidate "${candidate}":`, ipAuResult.reason);
         }
       } catch (err) {

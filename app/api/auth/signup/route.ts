@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getUserByReferralCode, normalizeReferralCode } from '@/lib/referral';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -7,12 +8,33 @@ const signUpSchema = z.object({
   password: z.string().min(8),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
+  referralCode: z.string().optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, firstName, lastName } = signUpSchema.parse(body);
+    const { email, password, firstName, lastName, referralCode: referralCodeRaw } =
+      signUpSchema.parse(body);
+
+    let referralMeta: string | undefined;
+    if (referralCodeRaw != null && String(referralCodeRaw).trim() !== '') {
+      const normalized = normalizeReferralCode(referralCodeRaw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: 'Invalid referral code format' },
+          { status: 400 }
+        );
+      }
+      const referrer = await getUserByReferralCode(normalized);
+      if (!referrer) {
+        return NextResponse.json(
+          { error: 'Referral code not found' },
+          { status: 400 }
+        );
+      }
+      referralMeta = normalized;
+    }
 
     const supabase = await createClient();
     const requestOrigin = new URL(request.url).origin;
@@ -33,6 +55,7 @@ export async function POST(request: Request) {
         data: {
           first_name: firstName,
           last_name: lastName,
+          ...(referralMeta ? { referral_code: referralMeta } : {}),
         },
       },
     });

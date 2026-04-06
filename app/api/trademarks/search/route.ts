@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryRows } from '@/lib/db/postgres';
 import { searchIPAustralia } from '@/lib/ipaustralia/search';
 
-const IP_AU_ENABLED = process.env.IP_AU_ENABLED === 'true';
-
 /**
  * USPTO Trademark Search API
  * GET /api/trademarks/search
@@ -252,12 +250,10 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    const ipAuPromise = IP_AU_ENABLED
-      ? searchIPAustralia(query, {
-          maxDetails: 10,
-          statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
-        })
-      : Promise.resolve([]);
+    const ipAuPromise = searchIPAustralia(query, {
+      maxDetails: 10,
+      statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
+    });
 
     const [usptoResult, ipAuResult] = await Promise.allSettled([usptoPromise, ipAuPromise]);
     const warnings: string[] = [];
@@ -268,7 +264,7 @@ export async function GET(request: NextRequest) {
     }
 
     const ipAuResults = ipAuResult.status === 'fulfilled' ? ipAuResult.value : [];
-    if (IP_AU_ENABLED && ipAuResult.status === 'rejected') {
+    if (ipAuResult.status === 'rejected') {
       console.error('IP Australia search error:', ipAuResult.reason);
       warnings.push('IP Australia search is temporarily unavailable. Showing USPTO results only.');
     }

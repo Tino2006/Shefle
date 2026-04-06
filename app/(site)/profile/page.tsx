@@ -34,6 +34,12 @@ export default function ProfilePage() {
     confirmPassword: "",
   });
 
+  const [referralInfo, setReferralInfo] = useState<{
+    code: string | null;
+    referralCount: number;
+    referredUsers: { id: string; email: string | null; created_at: string }[];
+  } | null>(null);
+
   // Fetch user profile on mount
   useEffect(() => {
     const fetchProfile = async () => {
@@ -61,6 +67,10 @@ export default function ProfilePage() {
             country: profile.country || "",
             company: profile.company_name || "",
           });
+
+          if (profileData.referral) {
+            setReferralInfo(profileData.referral);
+          }
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -364,6 +374,94 @@ export default function ProfilePage() {
               Manage security and preferences
             </p>
           </motion.div>
+
+          {/* Referrals (tracking only) */}
+          {referralInfo && (
+            <motion.div
+              className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm"
+              initial={fadeInUp.initial}
+              animate={fadeInUp.animate}
+              transition={{ duration: 0.6, delay: 0.32 }}
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-red-800"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Referrals</h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Share your code so others can join. Referral tracking only (no rewards in this
+                    version).
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                        Your code
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="text-base font-mono font-semibold text-gray-900 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                          {referralInfo.code ?? "—"}
+                        </code>
+                        {referralInfo.code ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const origin =
+                                typeof window !== "undefined" ? window.location.origin : "";
+                              const link = `${origin}/signup?ref=${encodeURIComponent(referralInfo.code!)}`;
+                              void navigator.clipboard.writeText(link).then(() => {
+                                toast.success("Referral link copied");
+                              });
+                            }}
+                            className="text-sm font-medium text-red-800 hover:text-red-900 transition-colors"
+                          >
+                            Copy link
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold text-gray-900">{referralInfo.referralCount}</span>{" "}
+                      {referralInfo.referralCount === 1 ? "user has" : "users have"} signed up with
+                      your code
+                    </p>
+                    {referralInfo.referredUsers.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                          Referred users
+                        </p>
+                        <ul className="space-y-2 max-h-40 overflow-y-auto">
+                          {referralInfo.referredUsers.map((u) => (
+                            <li
+                              key={u.id}
+                              className="flex justify-between gap-3 text-sm text-gray-700"
+                            >
+                              <span className="truncate">{u.email ?? u.id.slice(0, 8) + "…"}</span>
+                              <span className="text-gray-500 shrink-0">
+                                {new Date(u.created_at).toLocaleDateString()}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Password Card */}
           <motion.div

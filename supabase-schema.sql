@@ -18,6 +18,7 @@ CREATE TABLE public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Referral tracking columns: see supabase-referral-migration.sql (referral_code, referred_by_user_id).
 
 -- RLS Policies for profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
