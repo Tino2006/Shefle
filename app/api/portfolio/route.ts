@@ -6,11 +6,14 @@ import { z } from 'zod';
 const createPortfolioTrademarkSchema = z.object({
   registration_number: z.string().min(1, 'Registration number is required'),
   country: z.string().min(1, 'Country is required'),
-  niche_class: z.number().int().min(1).max(45, 'Niche class must be between 1 and 45'),
+  niche_classes: z.array(z.number().int().min(1).max(45)).min(1, 'At least one niche class is required'),
   registration_date: z.string().min(1, 'Registration date is required'),
-  logo_url: z.string().nullable().optional(),
-  mark_name: z.string().nullable().optional(),
+  logo_url: z.string().min(1, 'Certificate upload is required'),
+  mark_name: z.string().min(1, 'Mark name is required'),
 });
+
+const isMissingNicheClassesColumnError = (error: unknown) =>
+  error instanceof Error && /column\s+"?niche_classes"?\s+does not exist/i.test(error.message);
 
 export async function GET() {
   try {
@@ -21,23 +24,49 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const trademarks = await queryRows(
-      `SELECT
-        id::text,
-        user_id::text,
-        registration_number,
-        country,
-        niche_class,
-        registration_date::text,
-        logo_url,
-        mark_name,
-        created_at::text,
-        updated_at::text
-      FROM public.portfolio_trademarks
-      WHERE user_id = $1
-      ORDER BY created_at DESC`,
-      [user.id]
-    );
+    let trademarks;
+    try {
+      trademarks = await queryRows(
+        `SELECT
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text
+        FROM public.portfolio_trademarks
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+        [user.id]
+      );
+    } catch (error) {
+      if (!isMissingNicheClassesColumnError(error)) {
+        throw error;
+      }
+      trademarks = await queryRows(
+        `SELECT
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          ARRAY[niche_class] AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text
+        FROM public.portfolio_trademarks
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+        [user.id]
+      );
+    }
 
     return NextResponse.json({ success: true, trademarks });
   } catch (error) {
@@ -74,25 +103,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { registration_number, country, niche_class, registration_date, logo_url, mark_name } = validated.data;
+    const nicheClasses = Array.from(new Set(validated.data.niche_classes)).sort((a, b) => a - b);
+    const primaryClass = nicheClasses[0];
+    const { registration_number, country, registration_date, logo_url, mark_name } = validated.data;
 
-    const result = await queryOne(
-      `INSERT INTO public.portfolio_trademarks
-        (user_id, registration_number, country, niche_class, registration_date, logo_url, mark_name)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING
-        id::text,
-        user_id::text,
-        registration_number,
-        country,
-        niche_class,
-        registration_date::text,
-        logo_url,
-        mark_name,
-        created_at::text,
-        updated_at::text`,
-      [user.id, registration_number, country, niche_class, registration_date, logo_url || null, mark_name || null]
-    );
+    let result;
+    try {
+      result = await queryOne(
+        `INSERT INTO public.portfolio_trademarks
+          (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, mark_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text`,
+        [user.id, registration_number, country, primaryClass, nicheClasses, registration_date, logo_url, mark_name]
+      );
+    } catch (error) {
+      if (!isMissingNicheClassesColumnError(error)) {
+        throw error;
+      }
+      result = await queryOne(
+        `INSERT INTO public.portfolio_trademarks
+          (user_id, registration_number, country, niche_class, registration_date, logo_url, mark_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          ARRAY[niche_class] AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text`,
+        [user.id, registration_number, country, primaryClass, registration_date, logo_url, mark_name]
+      );
+    }
 
     if (!result) {
       throw new Error('Failed to create portfolio trademark');

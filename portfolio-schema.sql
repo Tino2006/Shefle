@@ -11,12 +11,38 @@ CREATE TABLE IF NOT EXISTS public.portfolio_trademarks (
   registration_number TEXT NOT NULL,
   country TEXT NOT NULL,
   niche_class INTEGER NOT NULL CHECK (niche_class >= 1 AND niche_class <= 45),
+  niche_classes INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[],
   registration_date DATE NOT NULL,
   logo_url TEXT,
   mark_name TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Support multi-class trademarks while keeping backward compatibility with niche_class.
+ALTER TABLE public.portfolio_trademarks
+  ADD COLUMN IF NOT EXISTS niche_classes INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];
+
+ALTER TABLE public.portfolio_trademarks
+  DROP CONSTRAINT IF EXISTS portfolio_trademarks_niche_classes_valid;
+
+ALTER TABLE public.portfolio_trademarks
+  ADD CONSTRAINT portfolio_trademarks_niche_classes_valid
+  CHECK (
+    array_length(niche_classes, 1) >= 1
+    AND niche_class = niche_classes[1]
+    AND niche_classes <@ ARRAY[
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+      11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+      31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+      41, 42, 43, 44, 45
+    ]::INTEGER[]
+  );
+
+UPDATE public.portfolio_trademarks
+SET niche_classes = ARRAY[niche_class]
+WHERE niche_classes IS NULL OR array_length(niche_classes, 1) IS NULL;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_portfolio_trademarks_user_id
@@ -31,18 +57,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_portfolio_trademarks_user_reg
 
 ALTER TABLE public.portfolio_trademarks ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own portfolio trademarks" ON public.portfolio_trademarks;
 CREATE POLICY "Users can view their own portfolio trademarks"
   ON public.portfolio_trademarks FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own portfolio trademarks" ON public.portfolio_trademarks;
 CREATE POLICY "Users can insert their own portfolio trademarks"
   ON public.portfolio_trademarks FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own portfolio trademarks" ON public.portfolio_trademarks;
 CREATE POLICY "Users can update their own portfolio trademarks"
   ON public.portfolio_trademarks FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own portfolio trademarks" ON public.portfolio_trademarks;
 CREATE POLICY "Users can delete their own portfolio trademarks"
   ON public.portfolio_trademarks FOR DELETE
   USING (auth.uid() = user_id);
@@ -77,7 +107,8 @@ COMMENT ON TABLE public.portfolio_trademarks IS 'User-owned trademarks that can 
 COMMENT ON COLUMN public.portfolio_trademarks.registration_number IS 'Official trademark registration number';
 COMMENT ON COLUMN public.portfolio_trademarks.country IS 'Country of trademark registration';
 COMMENT ON COLUMN public.portfolio_trademarks.niche_class IS 'Niche class (1-45)';
+COMMENT ON COLUMN public.portfolio_trademarks.niche_classes IS 'One or more niche classes (1-45), first value mirrors niche_class';
 COMMENT ON COLUMN public.portfolio_trademarks.registration_date IS 'Date the trademark was registered';
 COMMENT ON COLUMN public.portfolio_trademarks.logo_url IS 'URL to the trademark logo in Supabase Storage';
-COMMENT ON COLUMN public.portfolio_trademarks.mark_name IS 'Optional display name for the trademark';
+COMMENT ON COLUMN public.portfolio_trademarks.mark_name IS 'Display name for the trademark';
 COMMENT ON COLUMN public.watchlists.portfolio_trademark_id IS 'FK to the portfolio trademark being monitored';

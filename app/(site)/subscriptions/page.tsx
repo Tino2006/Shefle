@@ -2,10 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 const plans = [
   {
-    price: 40,
+    name: "Starter",
+    monthlyPrice: 100,
     features: [
       "50 Searches available",
       "1 Monitor",
@@ -14,7 +16,8 @@ const plans = [
     highlighted: false,
   },
   {
-    price: 50,
+    name: "Growth",
+    monthlyPrice: 150,
     features: [
       "70 Searches available",
       "2 Monitor",
@@ -23,17 +26,34 @@ const plans = [
     highlighted: true,
   },
   {
-    price: 60,
+    name: "Enterprise",
+    monthlyPrice: 200,
     features: [
       "Unlimited Searches Available",
       "3 Monitor",
-      "Unlimited Notifications"
+      "Unlimited Notifications",
+      "5% Discount on registration"
     ],
     highlighted: false,
   },
 ];
 
 export default function SubscriptionsPage() {
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  const displayedPlans = useMemo(() => {
+    return plans.map((plan) => {
+      const yearlyMonthlyEquivalent = Math.round(plan.monthlyPrice * 0.7);
+      const yearlyTotal = yearlyMonthlyEquivalent * 12;
+      const displayPrice = billingCycle === "monthly" ? plan.monthlyPrice : yearlyMonthlyEquivalent;
+      return {
+        ...plan,
+        displayPrice,
+        yearlyTotal,
+      };
+    });
+  }, [billingCycle]);
+
   return (
     <div className="w-full min-h-screen bg-white flex flex-col">
       {/* Main Content */}
@@ -48,9 +68,40 @@ export default function SubscriptionsPage() {
           </p>
         </div>
 
+        {/* Billing Toggle */}
+        <div className="mb-10 flex flex-col items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              type="button"
+              onClick={() => setBillingCycle("monthly")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                billingCycle === "monthly"
+                  ? "bg-red-800 text-white"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle("yearly")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                billingCycle === "yearly"
+                  ? "bg-red-800 text-white"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              Yearly
+            </button>
+          </div>
+          <p className="text-sm text-red-800 font-medium">
+            Yearly billing includes 30% discount
+          </p>
+        </div>
+
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
-          {plans.map((plan, index) => (
+          {displayedPlans.map((plan, index) => (
             <div
               key={index}
               className={`bg-white rounded-2xl p-8 flex flex-col ${
@@ -59,14 +110,22 @@ export default function SubscriptionsPage() {
                   : "border border-gray-200 shadow-sm"
               }`}
             >
+              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                {plan.name}
+              </p>
               {/* Price */}
               <div className="mb-8">
                 <div className="flex items-baseline gap-1">
                   <span className="text-5xl font-bold text-gray-900">
-                    ${plan.price}
+                    ${plan.displayPrice}
                   </span>
                   <span className="text-xl text-gray-500">/mo</span>
                 </div>
+                {billingCycle === "yearly" && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    Billed yearly at ${plan.yearlyTotal}
+                  </p>
+                )}
               </div>
 
               {/* Features List */}
@@ -95,7 +154,7 @@ export default function SubscriptionsPage() {
 
               {/* Buy Button */}
               <Link
-                href={`/payment?price=${plan.price}`}
+                href={`/payment?price=${plan.displayPrice}&billing=${billingCycle}&yearlyTotal=${plan.yearlyTotal}`}
                 className={`w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block ${
                   plan.highlighted
                     ? "bg-red-800 text-white hover:bg-red-900"

@@ -55,16 +55,18 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-    } else if (fileType === 'portfolio-logo') {
-      if (!file.type.startsWith('image/')) {
+    } else if (fileType === 'portfolio-certificate' || fileType === 'portfolio-logo') {
+      const isImage = file.type.startsWith('image/');
+      const isPDF = file.type === 'application/pdf';
+      if (!isImage && !isPDF) {
         return NextResponse.json(
-          { error: 'Portfolio logo must be an image (PNG, JPG, WEBP, etc.)' },
+          { error: 'Portfolio certificate must be an image (PNG, JPG, WEBP, etc.) or PDF' },
           { status: 400 }
         );
       }
       if (file.size > 8 * 1024 * 1024) {
         return NextResponse.json(
-          { error: 'Portfolio logo must be under 8MB' },
+          { error: 'Portfolio certificate must be under 8MB' },
           { status: 400 }
         );
       }

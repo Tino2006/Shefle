@@ -7,7 +7,9 @@ import { useState } from "react";
 
 export default function PaymentPage() {
   const searchParams = useSearchParams();
-  const price = searchParams.get("price") || "50";
+  const price = searchParams.get("price") || "100";
+  const billing = searchParams.get("billing") || "monthly";
+  const yearlyTotal = searchParams.get("yearlyTotal");
   const [paymentMethod, setPaymentMethod] = useState("card");
 
   return (
@@ -85,7 +87,9 @@ export default function PaymentPage() {
 
           {/* Pay Button */}
           <button className="w-full px-6 py-3 bg-red-800 text-white text-base font-semibold rounded-lg hover:bg-red-900 transition-colors mb-4">
-            Pay US${price}.00
+            {billing === "yearly" && yearlyTotal
+              ? `Pay US$${yearlyTotal}.00 / year`
+              : `Pay US$${price}.00 / month`}
           </button>
 
           {/* Privacy Policy Text */}

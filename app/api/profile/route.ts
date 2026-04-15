@@ -1,4 +1,5 @@
 import type { ReferredUserSummary } from '@/lib/types/database';
+import { ensureProfileIfMissing } from '@/lib/ensure-profile';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -22,6 +23,14 @@ export async function GET() {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
+      );
+    }
+
+    const ensured = await ensureProfileIfMissing(user, supabase);
+    if (!ensured.ok) {
+      return NextResponse.json(
+        { error: ensured.error },
+        { status: 503 }
       );
     }
 
@@ -90,6 +99,14 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
+      );
+    }
+
+    const ensured = await ensureProfileIfMissing(user, supabase);
+    if (!ensured.ok) {
+      return NextResponse.json(
+        { error: ensured.error },
+        { status: 503 }
       );
     }
 

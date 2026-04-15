@@ -1,4 +1,3 @@
-import { ensureProfileAfterSignup } from '@/lib/ensure-profile';
 import { getUserByReferralCode, normalizeReferralCode } from '@/lib/referral';
 import { createAuthRouteClient } from '@/lib/supabase/auth-route';
 import { NextResponse } from 'next/server';
@@ -102,30 +101,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const userId = data.user?.id;
-    if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
-      const ensured = await ensureProfileAfterSignup({
-        userId,
-        firstName,
-        lastName,
-        referralMeta,
-      });
-      if (!ensured.ok) {
-        console.error('[signup] ensureProfileAfterSignup failed:', ensured.error);
-        return NextResponse.json(
-          {
-            error:
-              'Account was created but your profile could not be saved. Please contact support or try again after confirming your email.',
-            detail: process.env.NODE_ENV === 'development' ? ensured.error : undefined,
-          },
-          { status: 500 }
-        );
-      }
-    } else if (userId && !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
-      console.warn(
-        '[signup] SUPABASE_SERVICE_ROLE_KEY is not set; profile row must come from the auth.users trigger only.'
-      );
-    }
+    // Profile row: DB trigger on auth.users + ensureProfileIfMissing() after first login/session
+    // (inserting profiles immediately after signUp() can race FK to auth.users and fail with 23503).
 
     return NextResponse.json({
       message: 'Registration successful! Please check your email to verify your account.',

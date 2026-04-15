@@ -122,6 +122,7 @@ export type PortfolioTrademark = {
   registration_number: string;
   country: string;
   niche_class: number;
+  niche_classes?: number[];
   registration_date: string;
   logo_url: string | null;
   mark_name: string | null;

@@ -10,6 +10,7 @@ interface PortfolioTrademark {
   registration_number: string;
   country: string;
   niche_class: number;
+  niche_classes?: number[];
   registration_date: string;
   logo_url: string | null;
   mark_name: string | null;
@@ -85,6 +86,7 @@ export default function MonitorPage() {
   const [selectedTrademarkId, setSelectedTrademarkId] = useState<string>("");
   const [newThreshold, setNewThreshold] = useState(0.6);
   const [creating, setCreating] = useState(false);
+  const isImageFileUrl = (url: string) => /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
 
   useEffect(() => {
     loadData();
@@ -204,6 +206,10 @@ export default function MonitorPage() {
     if (!selected) return;
 
     const queryText = selected.mark_name || `#${selected.registration_number}`;
+    const selectedClasses =
+      selected.niche_classes && selected.niche_classes.length > 0
+        ? selected.niche_classes
+        : [selected.niche_class];
 
     setCreating(true);
     try {
@@ -214,6 +220,7 @@ export default function MonitorPage() {
           query: queryText,
           min_similarity: newThreshold,
           status_filter: 'ACTIVE,PENDING',
+          class_filter: selectedClasses,
           portfolio_trademark_id: parseInt(selectedTrademarkId),
         }),
       });
@@ -351,7 +358,7 @@ export default function MonitorPage() {
                     <option value="">Choose a trademark...</option>
                     {portfolioTrademarks.map((tm) => (
                       <option key={tm.id} value={tm.id}>
-                        {tm.mark_name || `#${tm.registration_number}`} &mdash; {tm.country}, Class {tm.niche_class}
+                        {tm.mark_name || `#${tm.registration_number}`} &mdash; {tm.country}, Class {(tm.niche_classes && tm.niche_classes.length > 0 ? tm.niche_classes : [tm.niche_class]).join(", ")}
                       </option>
                     ))}
                   </select>
@@ -362,7 +369,7 @@ export default function MonitorPage() {
                   if (!sel) return null;
                   return (
                     <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      {sel.logo_url ? (
+                      {sel.logo_url && isImageFileUrl(sel.logo_url) ? (
                         <div className="w-14 h-14 shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden">
                           <img src={sel.logo_url} alt="" className="w-full h-full object-contain p-1" />
                         </div>
@@ -373,7 +380,9 @@ export default function MonitorPage() {
                       )}
                       <div className="text-sm">
                         <p className="font-semibold text-gray-900">{sel.mark_name || `#${sel.registration_number}`}</p>
-                        <p className="text-gray-500">Reg. #{sel.registration_number} &middot; {sel.country} &middot; Class {sel.niche_class}</p>
+                        <p className="text-gray-500">
+                          Reg. #{sel.registration_number} &middot; {sel.country} &middot; Class {(sel.niche_classes && sel.niche_classes.length > 0 ? sel.niche_classes : [sel.niche_class]).join(", ")}
+                        </p>
                       </div>
                     </div>
                   );

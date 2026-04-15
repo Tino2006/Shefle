@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { queryOne, query } from '@/lib/db/postgres';
 
+const isMissingNicheClassesColumnError = (error: unknown) =>
+  error instanceof Error && /column\s+"?niche_classes"?\s+does not exist/i.test(error.message);
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,22 +19,47 @@ export async function GET(
 
     const { id } = await params;
 
-    const trademark = await queryOne(
-      `SELECT
-        id::text,
-        user_id::text,
-        registration_number,
-        country,
-        niche_class,
-        registration_date::text,
-        logo_url,
-        mark_name,
-        created_at::text,
-        updated_at::text
-      FROM public.portfolio_trademarks
-      WHERE id = $1 AND user_id = $2`,
-      [id, user.id]
-    );
+    let trademark;
+    try {
+      trademark = await queryOne(
+        `SELECT
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text
+        FROM public.portfolio_trademarks
+        WHERE id = $1 AND user_id = $2`,
+        [id, user.id]
+      );
+    } catch (error) {
+      if (!isMissingNicheClassesColumnError(error)) {
+        throw error;
+      }
+      trademark = await queryOne(
+        `SELECT
+          id::text,
+          user_id::text,
+          registration_number,
+          country,
+          niche_class,
+          ARRAY[niche_class] AS niche_classes,
+          registration_date::text,
+          logo_url,
+          mark_name,
+          created_at::text,
+          updated_at::text
+        FROM public.portfolio_trademarks
+        WHERE id = $1 AND user_id = $2`,
+        [id, user.id]
+      );
+    }
 
     if (!trademark) {
       return NextResponse.json({ error: 'Trademark not found' }, { status: 404 });

@@ -1,3 +1,4 @@
+import { ensureProfileIfMissing } from '@/lib/ensure-profile';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sanitizeRedirectPath } from '@/lib/sanitize-redirect';
@@ -16,6 +17,16 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(new URL('/login?error=oauth_exchange_failed', requestUrl.origin));
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const ensured = await ensureProfileIfMissing(user, supabase);
+    if (!ensured.ok) {
+      console.error('[auth/callback] ensureProfileIfMissing:', ensured.error);
+    }
   }
 
   return NextResponse.redirect(new URL(safeNext, requestUrl.origin));

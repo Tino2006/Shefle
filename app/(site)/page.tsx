@@ -135,10 +135,14 @@ export default function Home() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-white">
+    <div className="flex min-h-screen w-full flex-col bg-white">
       {/* Hero Section */}
-      <div className="w-full bg-white">
-        <div className="mx-auto max-w-[1600px] px-4 py-12 lg:px-6 lg:py-16">
+      <main className="relative flex w-full flex-1 flex-col justify-center overflow-hidden bg-gradient-to-b from-red-50/50 via-white to-white">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(127,29,29,0.08),transparent)]"
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-[1600px] px-4 py-16 lg:px-6 lg:py-24">
           {/* Centered Content */}
           <div className="flex flex-col items-center text-center">
             {/* Brand Protection Tag */}
@@ -274,27 +278,10 @@ export default function Home() {
               )}
             </div>
           </div>
-
-          {/* Hero image: capped on large screens; replace PNG with a wider export (e.g. ~2048px) for sharper 2× displays */}
-          <div className="mt-16 lg:mt-20">
-            <div className="mx-auto w-full max-w-5xl rounded-2xl shadow-xl ring-1 ring-black/5">
-              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl">
-                <Image
-                  src="/Images/image.png"
-                  alt="Brand protection visualization with cybersecurity shield"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 1024px"
-                  className="object-cover"
-                  priority
-                />
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
+      </main>
 
-      {/* Footer */}
-      <footer className="w-full border-t border-gray-200 bg-white mt-20">
+      <footer className="w-full shrink-0 border-t border-gray-200 bg-white">
         <div className="mx-auto max-w-[1600px] px-4 lg:px-20 py-8">
           <div className="flex flex-col lg:flex-row items-start gap-32">
             {/* Left Side - Brand Info */}

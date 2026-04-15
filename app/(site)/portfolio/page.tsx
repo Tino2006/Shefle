@@ -8,6 +8,7 @@ interface PortfolioTrademark {
   registration_number: string;
   country: string;
   niche_class: number;
+  niche_classes?: number[];
   registration_date: string;
   logo_url: string | null;
   mark_name: string | null;
@@ -23,12 +24,14 @@ export default function PortfolioPage() {
 
   const [regNumber, setRegNumber] = useState("");
   const [country, setCountry] = useState("");
-  const [nicheClass, setNicheClass] = useState<number>(1);
+  const [nicheClasses, setNicheClasses] = useState<number[]>([]);
+  const [classPickerValue, setClassPickerValue] = useState<number>(1);
   const [regDate, setRegDate] = useState("");
   const [markName, setMarkName] = useState("");
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isImageFileUrl = (url: string) => /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
 
   useEffect(() => {
     loadTrademarks();
@@ -49,72 +52,90 @@ export default function PortfolioPage() {
     }
   };
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCertificateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      alert("Please upload a PNG, JPG, or WEBP image.");
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+
+    if (!isImage && !isPdf) {
+      alert("Please upload an image (PNG, JPG, WEBP) or PDF certificate.");
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      alert("Image must be under 8MB.");
+      alert("Certificate must be under 8MB.");
       return;
     }
 
-    setLogoFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setLogoPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    setCertificateFile(file);
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = () => setCertificatePreview(reader.result as string);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    setCertificatePreview(null);
   };
 
-  const clearLogo = () => {
-    setLogoFile(null);
-    setLogoPreview(null);
+  const clearCertificate = () => {
+    setCertificateFile(null);
+    setCertificatePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const resetForm = () => {
     setRegNumber("");
     setCountry("");
-    setNicheClass(1);
+    setNicheClasses([]);
+    setClassPickerValue(1);
     setRegDate("");
     setMarkName("");
-    clearLogo();
+    clearCertificate();
+  };
+
+  const addNicheClass = () => {
+    const value = classPickerValue;
+    if (nicheClasses.includes(value)) {
+      return;
+    }
+    setNicheClasses((prev) => [...prev, value].sort((a, b) => a - b));
+  };
+
+  const removeNicheClass = (value: number) => {
+    setNicheClasses((prev) => {
+      return prev.filter((item) => item !== value);
+    });
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regNumber.trim() || !country.trim() || !regDate) {
+    if (!regNumber.trim() || !markName.trim() || !country.trim() || !regDate || nicheClasses.length === 0 || !certificateFile) {
       alert("Please fill in all required fields.");
       return;
     }
 
     setCreating(true);
     try {
-      let logoUrl: string | null = null;
+      const formData = new FormData();
+      formData.append("file", certificateFile);
+      formData.append("fileType", "portfolio-certificate");
 
-      if (logoFile) {
-        const formData = new FormData();
-        formData.append("file", logoFile);
-        formData.append("fileType", "portfolio-logo");
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json();
-          alert(`Logo upload failed: ${err.error || "Unknown error"}`);
-          setCreating(false);
-          return;
-        }
-
-        const uploadData = await uploadRes.json();
-        logoUrl = uploadData.fileUrl;
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        alert(`Certificate upload failed: ${err.error || "Unknown error"}`);
+        setCreating(false);
+        return;
       }
+
+      const uploadData = await uploadRes.json();
+      const logoUrl: string = uploadData.fileUrl;
 
       const res = await fetch("/api/portfolio", {
         method: "POST",
@@ -122,10 +143,10 @@ export default function PortfolioPage() {
         body: JSON.stringify({
           registration_number: regNumber.trim(),
           country: country.trim(),
-          niche_class: nicheClass,
+          niche_classes: nicheClasses,
           registration_date: regDate,
           logo_url: logoUrl,
-          mark_name: markName.trim() || null,
+          mark_name: markName.trim(),
         }),
       });
 
@@ -223,7 +244,7 @@ export default function PortfolioPage() {
 
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Mark Name <span className="text-gray-400 font-normal">(optional)</span>
+                    Mark Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -231,6 +252,7 @@ export default function PortfolioPage() {
                     onChange={(e) => setMarkName(e.target.value)}
                     placeholder="e.g. My Brand"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+                    required
                   />
                 </div>
 
@@ -248,19 +270,60 @@ export default function PortfolioPage() {
                   />
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
                     Niche Class (1-45) <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={45}
-                    value={nicheClass}
-                    onChange={(e) => setNicheClass(parseInt(e.target.value) || 1)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    required
-                  />
+                  <div className="rounded-lg border border-gray-300 p-3 space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <select
+                        value={classPickerValue}
+                        onChange={(e) => setClassPickerValue(parseInt(e.target.value, 10))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20 sm:max-w-[180px]"
+                      >
+                        {Array.from({ length: 45 }, (_, index) => {
+                          const value = index + 1;
+                          return (
+                            <option key={value} value={value}>
+                              Class {value}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={addNicheClass}
+                        disabled={nicheClasses.includes(classPickerValue)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Add class
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNicheClasses([])}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    {nicheClasses.length === 0 ? (
+                      <p className="text-sm text-gray-500">No classes selected yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {nicheClasses.map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => removeNicheClass(value)}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-900 transition-colors hover:bg-red-100"
+                          >
+                            Class {value} <span className="ml-2 text-red-600">×</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -277,26 +340,43 @@ export default function PortfolioPage() {
                 </div>
               </div>
 
-              {/* Logo Upload */}
+              {/* Certificate Upload */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Logo <span className="text-gray-400 font-normal">(optional)</span>
+                  Certificate Upload <span className="text-red-500">*</span>
                 </label>
-                {logoPreview ? (
+                {certificatePreview ? (
                   <div className="flex items-center gap-4">
                     <div className="relative w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
                       <img
-                        src={logoPreview}
-                        alt="Logo preview"
+                        src={certificatePreview}
+                        alt="Certificate preview"
                         className="w-full h-full object-contain p-1"
                       />
                     </div>
                     <button
                       type="button"
-                      onClick={clearLogo}
+                      onClick={clearCertificate}
                       className="text-sm text-red-600 hover:text-red-800 font-medium"
                     >
-                      Remove image
+                      Remove file
+                    </button>
+                  </div>
+                ) : certificateFile ? (
+                  <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <svg className="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+                    </svg>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">{certificateFile.name}</p>
+                      <p className="text-xs text-gray-500">PDF certificate selected</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearCertificate}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Remove
                     </button>
                   </div>
                 ) : (
@@ -315,19 +395,19 @@ export default function PortfolioPage() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={1.5}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                         />
                       </svg>
-                      <p className="mt-1 text-sm text-gray-600">Click to upload logo</p>
-                      <p className="text-xs text-gray-400">PNG, JPG, WEBP up to 8MB</p>
+                      <p className="mt-1 text-sm text-gray-600">Click to upload certificate</p>
+                      <p className="text-xs text-gray-400">PDF, PNG, JPG, WEBP up to 8MB</p>
                     </div>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                  onChange={handleLogoChange}
+                  accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={handleCertificateChange}
                   className="hidden"
                 />
               </div>
@@ -335,7 +415,7 @@ export default function PortfolioPage() {
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:gap-3 sm:pt-2">
                 <button
                   type="submit"
-                  disabled={creating || !regNumber.trim() || !country.trim() || !regDate}
+                  disabled={creating || !regNumber.trim() || !markName.trim() || !country.trim() || !regDate || nicheClasses.length === 0 || !certificateFile}
                   className="w-full rounded-lg bg-red-800 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto sm:px-6 sm:py-2"
                 >
                   {creating ? "Adding..." : "Add Trademark"}
@@ -396,7 +476,7 @@ export default function PortfolioPage() {
                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start gap-4">
-                  {tm.logo_url ? (
+                  {tm.logo_url && isImageFileUrl(tm.logo_url) ? (
                     <div className="w-16 h-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
                       <img
                         src={tm.logo_url}
@@ -419,7 +499,7 @@ export default function PortfolioPage() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={1.5}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                         />
                       </svg>
                     </div>
@@ -441,7 +521,9 @@ export default function PortfolioPage() {
                   </div>
                   <div>
                     <span className="text-gray-500">Niche Class</span>
-                    <p className="font-medium text-gray-900">Class {tm.niche_class}</p>
+                    <p className="font-medium text-gray-900">
+                      Class {(tm.niche_classes && tm.niche_classes.length > 0 ? tm.niche_classes : [tm.niche_class]).join(", ")}
+                    </p>
                   </div>
                   <div className="col-span-2">
                     <span className="text-gray-500">Registered</span>
@@ -452,6 +534,16 @@ export default function PortfolioPage() {
                 </div>
 
                 <div className="mt-4 flex gap-2">
+                  {tm.logo_url && (
+                    <a
+                      href={tm.logo_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-red-600"
+                    >
+                      Certificate
+                    </a>
+                  )}
                   <Link
                     href="/monitor"
                     className="flex-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-800 transition-colors hover:bg-red-100"

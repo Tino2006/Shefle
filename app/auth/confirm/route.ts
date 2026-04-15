@@ -1,3 +1,4 @@
+import { ensureProfileIfMissing } from '@/lib/ensure-profile';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sanitizeRedirectPath } from '@/lib/sanitize-redirect';
@@ -23,6 +24,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       new URL('/login?error=access_denied&error_code=otp_expired', requestUrl.origin)
     );
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const ensured = await ensureProfileIfMissing(user, supabase);
+    if (!ensured.ok) {
+      console.error('[auth/confirm] ensureProfileIfMissing:', ensured.error);
+    }
   }
 
   return NextResponse.redirect(new URL(safeNext, requestUrl.origin));

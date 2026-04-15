@@ -1,3 +1,4 @@
+import { ensureProfileIfMissing } from '@/lib/ensure-profile';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
         { error: error.message },
         { status: 401 }
       );
+    }
+
+    const ensured = await ensureProfileIfMissing(data.user, supabase);
+    if (!ensured.ok) {
+      return NextResponse.json({ error: ensured.error }, { status: 503 });
     }
 
     // Fetch user's profile to get role
