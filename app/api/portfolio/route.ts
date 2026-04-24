@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { queryOne, queryRows } from '@/lib/db/postgres';
+import { isMissingPortfolioApprovalColumn } from '@/lib/db/portfolioApprovalMigration';
 import { z } from 'zod';
 
 const createPortfolioTrademarkSchema = z.object({
@@ -14,6 +15,8 @@ const createPortfolioTrademarkSchema = z.object({
 
 const isMissingNicheClassesColumnError = (error: unknown) =>
   error instanceof Error && /column\s+"?niche_classes"?\s+does not exist/i.test(error.message);
+
+const isMissingApprovalColumnError = isMissingPortfolioApprovalColumn;
 
 export async function GET() {
   try {
@@ -37,6 +40,10 @@ export async function GET() {
           registration_date::text,
           logo_url,
           mark_name,
+          approval_status,
+          rejection_reason,
+          reviewed_at::text,
+          reviewed_by::text,
           created_at::text,
           updated_at::text
         FROM public.portfolio_trademarks
@@ -45,27 +52,55 @@ export async function GET() {
         [user.id]
       );
     } catch (error) {
-      if (!isMissingNicheClassesColumnError(error)) {
+      if (isMissingNicheClassesColumnError(error)) {
+        trademarks = await queryRows(
+          `SELECT
+            id::text,
+            user_id::text,
+            registration_number,
+            country,
+            niche_class,
+            ARRAY[niche_class] AS niche_classes,
+            registration_date::text,
+            logo_url,
+            mark_name,
+            'approved'::text AS approval_status,
+            NULL::text AS rejection_reason,
+            NULL::text AS reviewed_at,
+            NULL::text AS reviewed_by,
+            created_at::text,
+            updated_at::text
+          FROM public.portfolio_trademarks
+          WHERE user_id = $1
+          ORDER BY created_at DESC`,
+          [user.id]
+        );
+      } else if (isMissingApprovalColumnError(error)) {
+        trademarks = await queryRows(
+          `SELECT
+            id::text,
+            user_id::text,
+            registration_number,
+            country,
+            niche_class,
+            COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
+            registration_date::text,
+            logo_url,
+            mark_name,
+            'approved'::text AS approval_status,
+            NULL::text AS rejection_reason,
+            NULL::text AS reviewed_at,
+            NULL::text AS reviewed_by,
+            created_at::text,
+            updated_at::text
+          FROM public.portfolio_trademarks
+          WHERE user_id = $1
+          ORDER BY created_at DESC`,
+          [user.id]
+        );
+      } else {
         throw error;
       }
-      trademarks = await queryRows(
-        `SELECT
-          id::text,
-          user_id::text,
-          registration_number,
-          country,
-          niche_class,
-          ARRAY[niche_class] AS niche_classes,
-          registration_date::text,
-          logo_url,
-          mark_name,
-          created_at::text,
-          updated_at::text
-        FROM public.portfolio_trademarks
-        WHERE user_id = $1
-        ORDER BY created_at DESC`,
-        [user.id]
-      );
     }
 
     return NextResponse.json({ success: true, trademarks });
@@ -111,8 +146,8 @@ export async function POST(request: NextRequest) {
     try {
       result = await queryOne(
         `INSERT INTO public.portfolio_trademarks
-          (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, mark_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, mark_name, approval_status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
         RETURNING
           id::text,
           user_id::text,
@@ -123,32 +158,64 @@ export async function POST(request: NextRequest) {
           registration_date::text,
           logo_url,
           mark_name,
+          approval_status,
+          rejection_reason,
+          reviewed_at::text,
+          reviewed_by::text,
           created_at::text,
           updated_at::text`,
         [user.id, registration_number, country, primaryClass, nicheClasses, registration_date, logo_url, mark_name]
       );
     } catch (error) {
-      if (!isMissingNicheClassesColumnError(error)) {
+      if (isMissingNicheClassesColumnError(error)) {
+        result = await queryOne(
+          `INSERT INTO public.portfolio_trademarks
+            (user_id, registration_number, country, niche_class, registration_date, logo_url, mark_name)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING
+            id::text,
+            user_id::text,
+            registration_number,
+            country,
+            niche_class,
+            ARRAY[niche_class] AS niche_classes,
+            registration_date::text,
+            logo_url,
+            mark_name,
+            'approved'::text AS approval_status,
+            NULL::text AS rejection_reason,
+            NULL::text AS reviewed_at,
+            NULL::text AS reviewed_by,
+            created_at::text,
+            updated_at::text`,
+          [user.id, registration_number, country, primaryClass, registration_date, logo_url, mark_name]
+        );
+      } else if (isMissingApprovalColumnError(error)) {
+        result = await queryOne(
+          `INSERT INTO public.portfolio_trademarks
+            (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, mark_name)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING
+            id::text,
+            user_id::text,
+            registration_number,
+            country,
+            niche_class,
+            COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
+            registration_date::text,
+            logo_url,
+            mark_name,
+            'approved'::text AS approval_status,
+            NULL::text AS rejection_reason,
+            NULL::text AS reviewed_at,
+            NULL::text AS reviewed_by,
+            created_at::text,
+            updated_at::text`,
+          [user.id, registration_number, country, primaryClass, nicheClasses, registration_date, logo_url, mark_name]
+        );
+      } else {
         throw error;
       }
-      result = await queryOne(
-        `INSERT INTO public.portfolio_trademarks
-          (user_id, registration_number, country, niche_class, registration_date, logo_url, mark_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING
-          id::text,
-          user_id::text,
-          registration_number,
-          country,
-          niche_class,
-          ARRAY[niche_class] AS niche_classes,
-          registration_date::text,
-          logo_url,
-          mark_name,
-          created_at::text,
-          updated_at::text`,
-        [user.id, registration_number, country, primaryClass, registration_date, logo_url, mark_name]
-      );
     }
 
     if (!result) {

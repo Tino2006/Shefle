@@ -116,6 +116,8 @@ export type UsageTracking = {
   created_at: string;
 };
 
+export type PortfolioTrademarkApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export type PortfolioTrademark = {
   id: string;
   user_id: string;
@@ -126,6 +128,16 @@ export type PortfolioTrademark = {
   registration_date: string;
   logo_url: string | null;
   mark_name: string | null;
+  approval_status: PortfolioTrademarkApprovalStatus;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Admin list row with submitter profile fields */
+export type AdminPortfolioTrademarkRow = PortfolioTrademark & {
+  owner_first_name: string | null;
+  owner_last_name: string | null;
 };

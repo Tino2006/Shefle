@@ -2,18 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-
-interface PortfolioTrademark {
-  id: string;
-  registration_number: string;
-  country: string;
-  niche_class: number;
-  niche_classes?: number[];
-  registration_date: string;
-  logo_url: string | null;
-  mark_name: string | null;
-  created_at: string;
-}
+import type { PortfolioTrademark } from "@/lib/types/database";
 
 export default function PortfolioPage() {
   const [trademarks, setTrademarks] = useState<PortfolioTrademark[]>([]);
@@ -32,6 +21,12 @@ export default function PortfolioPage() {
   const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isImageFileUrl = (url: string) => /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
+
+  const statusBadgeClass = (status: PortfolioTrademark["approval_status"]) => {
+    if (status === "approved") return "bg-green-100 text-green-800";
+    if (status === "rejected") return "bg-red-100 text-red-800";
+    return "bg-yellow-100 text-yellow-800";
+  };
 
   useEffect(() => {
     loadTrademarks();
@@ -154,6 +149,7 @@ export default function PortfolioPage() {
         resetForm();
         setShowCreateForm(false);
         loadTrademarks();
+        alert("Trademark submitted. It will appear as pending until an administrator approves it.");
       } else {
         const error = await res.json();
         alert(`Failed to create trademark: ${error.error || "Unknown error"}`);
@@ -205,7 +201,7 @@ export default function PortfolioPage() {
                 Trademark Portfolio
               </h1>
               <p className="mt-1 text-sm text-gray-600 sm:text-base">
-                Register your trademarks to monitor them for infringements
+                Register your trademarks for review. Once approved by our team, you can use them for monitoring.
               </p>
             </div>
             <button
@@ -505,12 +501,26 @@ export default function PortfolioPage() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-gray-900 truncate">
-                      {tm.mark_name || `#${tm.registration_number}`}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-bold text-gray-900 truncate">
+                        {tm.mark_name || `#${tm.registration_number}`}
+                      </h3>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(tm.approval_status)}`}
+                      >
+                        {tm.approval_status === "pending"
+                          ? "Pending review"
+                          : tm.approval_status === "approved"
+                            ? "Approved"
+                            : "Rejected"}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       Reg. #{tm.registration_number}
                     </p>
+                    {tm.approval_status === "rejected" && tm.rejection_reason && (
+                      <p className="mt-2 text-sm text-red-700">{tm.rejection_reason}</p>
+                    )}
                   </div>
                 </div>
 
@@ -533,7 +543,7 @@ export default function PortfolioPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex gap-2 flex-wrap">
                   {tm.logo_url && (
                     <a
                       href={tm.logo_url}
@@ -544,12 +554,18 @@ export default function PortfolioPage() {
                       Certificate
                     </a>
                   )}
-                  <Link
-                    href="/monitor"
-                    className="flex-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-800 transition-colors hover:bg-red-100"
-                  >
-                    Monitor
-                  </Link>
+                  {tm.approval_status === "approved" ? (
+                    <Link
+                      href="/monitor"
+                      className="flex-1 min-w-[120px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-800 transition-colors hover:bg-red-100"
+                    >
+                      Monitor
+                    </Link>
+                  ) : (
+                    <span className="flex-1 min-w-[120px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center text-sm font-medium text-gray-500">
+                      {tm.approval_status === "pending" ? "Awaiting approval" : "Not available for monitor"}
+                    </span>
+                  )}
                   <button
                     onClick={() => handleDelete(tm.id)}
                     disabled={deleting[tm.id]}

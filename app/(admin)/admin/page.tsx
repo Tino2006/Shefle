@@ -9,6 +9,7 @@ type Stats = {
   totalUsers: number;
   totalBrands: number;
   pendingBrands: number;
+  pendingPortfolioTrademarks: number;
   totalContacts: number;
   unreadContacts: number;
   activeSubscriptions: number;
@@ -21,6 +22,7 @@ export default function AdminDashboard() {
     totalUsers: 0,
     totalBrands: 0,
     pendingBrands: 0,
+    pendingPortfolioTrademarks: 0,
     totalContacts: 0,
     unreadContacts: 0,
     activeSubscriptions: 0,
@@ -68,7 +70,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
         {/* Total Users */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
@@ -92,9 +94,27 @@ export default function AdminDashboard() {
             </div>
           </div>
           <h3 className="text-2xl font-bold text-gray-900 mb-1">{stats.pendingBrands}</h3>
-          <p className="text-sm text-gray-600">Pending Registrations</p>
+          <p className="text-sm text-gray-600">Pending Brand Registrations</p>
           {stats.pendingBrands > 0 && (
             <Link href="/admin/brands" className="text-xs text-red-800 hover:text-red-900 mt-2 inline-block">
+              Review now →
+            </Link>
+          )}
+        </div>
+
+        {/* Pending portfolio trademarks */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">{stats.pendingPortfolioTrademarks}</h3>
+          <p className="text-sm text-gray-600">Pending Trademarks</p>
+          {stats.pendingPortfolioTrademarks > 0 && (
+            <Link href="/admin/trademarks" className="text-xs text-red-800 hover:text-red-900 mt-2 inline-block">
               Review now →
             </Link>
           )}
@@ -151,6 +171,26 @@ export default function AdminDashboard() {
                   <div>
                     <p className="font-medium text-gray-900">Review Brand Registrations</p>
                     <p className="text-sm text-gray-500">{stats.pendingBrands} pending approvals</p>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-red-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link
+                href="/admin/trademarks"
+                className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-red-200 hover:bg-red-50 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center group-hover:bg-amber-200">
+                    <svg className="w-5 h-5 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Review Portfolio Trademarks</p>
+                    <p className="text-sm text-gray-500">{stats.pendingPortfolioTrademarks} pending approvals</p>
                   </div>
                 </div>
                 <svg className="w-5 h-5 text-gray-400 group-hover:text-red-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">

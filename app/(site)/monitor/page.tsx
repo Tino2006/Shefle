@@ -1,20 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
 import toast from "react-hot-toast";
-
-interface PortfolioTrademark {
-  id: string;
-  registration_number: string;
-  country: string;
-  niche_class: number;
-  niche_classes?: number[];
-  registration_date: string;
-  logo_url: string | null;
-  mark_name: string | null;
-}
+import type { PortfolioTrademark } from "@/lib/types/database";
 
 interface Watchlist {
   id: string;
@@ -87,6 +77,20 @@ export default function MonitorPage() {
   const [newThreshold, setNewThreshold] = useState(0.6);
   const [creating, setCreating] = useState(false);
   const isImageFileUrl = (url: string) => /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
+
+  const approvedPortfolioTrademarks = useMemo(
+    () => portfolioTrademarks.filter((t) => t.approval_status === "approved"),
+    [portfolioTrademarks]
+  );
+
+  useEffect(() => {
+    if (
+      selectedTrademarkId &&
+      !approvedPortfolioTrademarks.some((t) => t.id === selectedTrademarkId)
+    ) {
+      setSelectedTrademarkId("");
+    }
+  }, [approvedPortfolioTrademarks, selectedTrademarkId]);
 
   useEffect(() => {
     loadData();
@@ -202,8 +206,11 @@ export default function MonitorPage() {
       return;
     }
 
-    const selected = portfolioTrademarks.find(t => t.id === selectedTrademarkId);
-    if (!selected) return;
+    const selected = approvedPortfolioTrademarks.find((t) => t.id === selectedTrademarkId);
+    if (!selected) {
+      toast.error("Choose an approved trademark from your portfolio");
+      return;
+    }
 
     const queryText = selected.mark_name || `#${selected.registration_number}`;
     const selectedClasses =
@@ -235,6 +242,8 @@ export default function MonitorPage() {
         const error = await response.json();
         if (response.status === 409) {
           toast.error(error.message || 'You already have this monitor');
+        } else if (response.status === 403) {
+          toast.error(error.message || "This trademark is not approved for monitoring yet.");
         } else {
           toast.error(`Failed to create watchlist: ${error.message || "Unknown error"}`);
         }
@@ -343,6 +352,22 @@ export default function MonitorPage() {
                   Go to Portfolio
                 </Link>
               </div>
+            ) : approvedPortfolioTrademarks.length === 0 ? (
+              <div className="text-center py-6">
+                <svg className="mx-auto h-10 w-10 text-amber-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-gray-600 font-medium">No approved trademarks yet</p>
+                <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+                  Monitors can only use portfolio marks that have been approved. Pending marks appear on your portfolio page until an administrator reviews them.
+                </p>
+                <Link
+                  href="/portfolio"
+                  className="mt-4 inline-block rounded-lg bg-red-800 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900"
+                >
+                  View portfolio
+                </Link>
+              </div>
             ) : (
               <form onSubmit={handleCreateWatchlist} className="space-y-4">
                 <div>
@@ -356,7 +381,7 @@ export default function MonitorPage() {
                     required
                   >
                     <option value="">Choose a trademark...</option>
-                    {portfolioTrademarks.map((tm) => (
+                    {approvedPortfolioTrademarks.map((tm) => (
                       <option key={tm.id} value={tm.id}>
                         {tm.mark_name || `#${tm.registration_number}`} &mdash; {tm.country}, Class {(tm.niche_classes && tm.niche_classes.length > 0 ? tm.niche_classes : [tm.niche_class]).join(", ")}
                       </option>
@@ -365,7 +390,7 @@ export default function MonitorPage() {
                 </div>
 
                 {selectedTrademarkId && (() => {
-                  const sel = portfolioTrademarks.find(t => t.id === selectedTrademarkId);
+                  const sel = approvedPortfolioTrademarks.find((t) => t.id === selectedTrademarkId);
                   if (!sel) return null;
                   return (
                     <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3">

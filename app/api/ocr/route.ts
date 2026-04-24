@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeText } from '@/lib/normalizeText';
-import { detectImageEntities } from '@/lib/googleVision';
+import { detectImageEntities, isGenericVisionLabel } from '@/lib/googleVision';
 
 /**
  * OCR API with Google Vision Web Detection
@@ -80,20 +80,30 @@ export async function POST(request: NextRequest) {
         `webEntities=${JSON.stringify(visionData.webEntities.slice(0, 5))}`
     );
 
-    // Build raw candidate list: bestGuessLabel first, then top web entities
+    // Build raw candidate list: on-image text first, then non-generic best guess, then web entities
     const rawCandidates: string[] = [];
 
-    if (visionData.bestGuessLabels.length > 0) {
-      rawCandidates.push(visionData.bestGuessLabels[0].label);
+    const pushUnique = (label: string) => {
+      const trimmed = label.trim();
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      if (rawCandidates.some((c) => c.toLowerCase() === lower)) return;
+      rawCandidates.push(trimmed);
+    };
+
+    for (const t of visionData.textBrandCandidates) {
+      pushUnique(t);
+    }
+
+    for (const label of visionData.bestGuessLabels) {
+      const lbl = label.label.trim();
+      if (!isGenericVisionLabel(lbl)) {
+        pushUnique(lbl);
+      }
     }
 
     for (const entity of visionData.webEntities) {
-      const isDuplicate = rawCandidates.some(
-        (c) => c.toLowerCase() === entity.description.toLowerCase()
-      );
-      if (!isDuplicate) {
-        rawCandidates.push(entity.description);
-      }
+      pushUnique(entity.description);
     }
 
     const query = rawCandidates.length > 0 ? normalizeText(rawCandidates[0]) : '';

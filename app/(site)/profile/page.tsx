@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { getCountryOptions, normalizeCountryForSelect } from "@/lib/countries";
 import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -34,6 +35,8 @@ export default function ProfilePage() {
     confirmPassword: "",
   });
 
+  const countryOptions = useMemo(() => getCountryOptions(), []);
+
   const [referralInfo, setReferralInfo] = useState<{
     code: string | null;
     referralCount: number;
@@ -64,7 +67,7 @@ export default function ProfilePage() {
             lastName: profile.last_name || "",
             email: userData.user.email || "",
             phone: profile.phone || "",
-            country: profile.country || "",
+            country: normalizeCountryForSelect(profile.country),
             company: profile.company_name || "",
           });
 
@@ -325,12 +328,15 @@ export default function ProfilePage() {
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 focus:shadow-sm hover:border-gray-300"
                   >
                     <option value="">Select country</option>
-                    <option value="us">United States</option>
-                    <option value="ca">Canada</option>
-                    <option value="uk">United Kingdom</option>
-                    <option value="au">Australia</option>
-                    <option value="lb">Lebanon</option>
-                    <option value="other">Other</option>
+                    {formData.country &&
+                      !countryOptions.some((c) => c.code === formData.country) && (
+                        <option value={formData.country}>{formData.country}</option>
+                      )}
+                    {countryOptions.map(({ code, name }) => (
+                      <option key={code} value={code}>
+                        {name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

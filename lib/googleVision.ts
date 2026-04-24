@@ -138,7 +138,68 @@ const GENERIC_WORDS = new Set([
   'trademark',
   'registered',
   'copyright',
+  'drawing',
+  'sketch',
+  'artwork',
+  'digital art',
+  'watercolor',
+  'graphics',
+  'stock image',
+  'stock photo',
 ]);
+
+/** Labels too vague to drive a trademark search (applies to best-guess and entities). */
+export function isGenericVisionLabel(text: string): boolean {
+  const d = text.trim().toLowerCase();
+  if (d.length === 0) return true;
+  if (GENERIC_WORDS.has(d)) return true;
+  const words = d.split(/\s+/).filter(Boolean);
+  if (words.length > 1 && words.every((w) => GENERIC_WORDS.has(w))) return true;
+  return false;
+}
+
+/**
+ * Pull likely brand/mark strings from Vision TEXT_DETECTION (full document string).
+ * Short lines and ALL-CAPS tokens (e.g. WMA) are preferred over long body copy.
+ */
+function extractTextBrandCandidates(fullText: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  const push = (raw: string) => {
+    const t = raw.trim();
+    if (t.length < 2 || t.length > 48) return;
+    const lower = t.toLowerCase();
+    if (isGenericVisionLabel(t) || seen.has(lower)) return;
+    seen.add(lower);
+    out.push(t);
+  };
+
+  const lines = fullText
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const linesByLength = [...lines].sort((a, b) => a.length - b.length);
+  for (const line of linesByLength) {
+    const compact = line.replace(/\s+/g, ' ');
+    if (compact.length <= 28 && /^[A-Za-z0-9][A-Za-z0-9&.\s'-]*$/.test(compact)) {
+      push(compact);
+    }
+  }
+
+  const tokens = fullText.match(/[A-Za-z][A-Za-z0-9&]*/g) ?? [];
+  const acronyms = tokens.filter((w) => /^[A-Z]{2,8}$/.test(w));
+  acronyms.sort((a, b) => a.length - b.length || a.localeCompare(b));
+  for (const w of acronyms) push(w);
+
+  for (const w of tokens) {
+    if (w.length >= 3 && w.length <= 24 && /^[A-Za-z][A-Za-z0-9]*$/.test(w)) {
+      push(w);
+    }
+  }
+
+  return out;
+}
 
 export interface WebEntity {
   description: string;
@@ -157,6 +218,8 @@ export interface ImageMatch {
 export interface VisionDetectionResult {
   webEntities: WebEntity[];
   bestGuessLabels: BestGuessLabel[];
+  /** On-image text strings likely to be a mark name (from TEXT_DETECTION). */
+  textBrandCandidates: string[];
   fullMatchingImages: ImageMatch[];
   partialMatchingImages: ImageMatch[];
   visuallySimilarImages: ImageMatch[];
@@ -187,17 +250,23 @@ export async function detectImageEntities(
     return trimmed.length > 0 ? trimmed : undefined;
   };
 
-  const [result] = await client.webDetection({
+  const [result] = await client.annotateImage({
     image: { content: imageBuffer.toString('base64') },
+    features: [{ type: 'WEB_DETECTION' }, { type: 'TEXT_DETECTION' }],
   });
 
   const webDetection = result.webDetection;
 
+  const fullTextBlock = result.textAnnotations?.[0]?.description?.trim() ?? '';
+  const textBrandCandidates = fullTextBlock
+    ? extractTextBrandCandidates(fullTextBlock)
+    : [];
+
   const webEntities: WebEntity[] = (webDetection?.webEntities ?? [])
     .filter((entity) => {
-      const desc = (entity.description ?? '').trim().toLowerCase();
+      const desc = (entity.description ?? '').trim();
       const score = entity.score ?? 0;
-      return desc.length > 0 && score > 0.5 && !GENERIC_WORDS.has(desc);
+      return desc.length > 0 && score > 0.5 && !isGenericVisionLabel(desc);
     })
     .map((entity) => ({
       description: entity.description!.trim(),
@@ -246,6 +315,7 @@ export async function detectImageEntities(
   return {
     webEntities,
     bestGuessLabels,
+    textBrandCandidates,
     fullMatchingImages,
     partialMatchingImages,
     visuallySimilarImages,

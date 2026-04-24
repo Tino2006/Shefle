@@ -35,6 +35,7 @@ interface Watchlist {
 interface PortfolioTrademarkLogoRow {
   id: string;
   logo_url: string | null;
+  approval_status: string;
 }
 
 interface ExistingWatchlistRow {
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
     if (portfolio_trademark_id) {
       const portfolioTrademark = await queryOne<PortfolioTrademarkLogoRow>(
         `
-          SELECT id::text, logo_url
+          SELECT id::text, logo_url, COALESCE(approval_status, 'approved') AS approval_status
           FROM public.portfolio_trademarks
           WHERE id = $1 AND user_id = $2
         `,
@@ -140,6 +141,16 @@ export async function POST(request: NextRequest) {
       if (!portfolioTrademark) {
         return NextResponse.json(
           { error: 'Invalid portfolio trademark selection' },
+          { status: 403 }
+        );
+      }
+
+      if (portfolioTrademark.approval_status !== 'approved') {
+        return NextResponse.json(
+          {
+            error: 'Trademark not approved',
+            message: 'This trademark is pending admin approval or was rejected. You can create a monitor only after it is approved.',
+          },
           { status: 403 }
         );
       }

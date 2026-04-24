@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
 import { NextResponse } from 'next/server';
+import { queryOne } from '@/lib/db/postgres';
+import { isMissingPortfolioApprovalColumn } from '@/lib/db/portfolioApprovalMigration';
 
 export async function GET() {
   try {
@@ -22,10 +24,24 @@ export async function GET() {
       supabase.from('subscriptions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
     ]);
 
+    let pendingPortfolioTrademarks = 0;
+    try {
+      const row = await queryOne<{ c: string }>(
+        `SELECT COUNT(*)::text AS c FROM public.portfolio_trademarks WHERE approval_status = 'pending'`
+      );
+      pendingPortfolioTrademarks = parseInt(row?.c || '0', 10) || 0;
+    } catch (e) {
+      if (!isMissingPortfolioApprovalColumn(e)) {
+        console.warn('Admin stats: pending portfolio trademark count failed:', e);
+      }
+      pendingPortfolioTrademarks = 0;
+    }
+
     const stats = {
       totalUsers: usersResult.count || 0,
       totalBrands: brandsResult.count || 0,
       pendingBrands: pendingBrandsResult.count || 0,
+      pendingPortfolioTrademarks,
       totalContacts: contactsResult.count || 0,
       unreadContacts: unreadContactsResult.count || 0,
       activeSubscriptions: subscriptionsResult.count || 0,

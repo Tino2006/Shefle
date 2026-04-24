@@ -38,6 +38,15 @@ export function AdminNavbar() {
         </svg>
       )
     },
+    {
+      label: "Trademarks",
+      href: "/admin/trademarks",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
     { 
       label: "Contact Messages", 
       href: "/admin/contacts", 

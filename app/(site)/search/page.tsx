@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
 import { generateCandidateQueries } from "@/lib/queryGeneration";
+import { visualMatchDisplayPercents } from "@/lib/visualMatchDisplay";
 
 interface TrademarkResult {
   office?: string;
@@ -55,6 +56,11 @@ export default function SearchPage() {
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [candidates, setCandidates] = useState<string[]>([]);
   const [isMultiSearch, setIsMultiSearch] = useState(false);
+
+  const visualMatchDisplayScores = useMemo(
+    () => visualMatchDisplayPercents(visualMatches.map((m) => m.similarityScore)),
+    [visualMatches]
+  );
 
   useEffect(() => {
     const queryParam = searchParams.get('query');
@@ -270,6 +276,14 @@ export default function SearchPage() {
     if (score >= 0.8) return "text-red-700";
     if (score >= 0.6) return "text-amber-700";
     if (score >= 0.4) return "text-gray-600";
+    return "text-gray-400";
+  };
+
+  /** Colors for rank-relative visual match % (0–100). */
+  const getVisualDisplayColor = (pct: number) => {
+    if (pct >= 85) return "text-red-700";
+    if (pct >= 50) return "text-amber-700";
+    if (pct >= 25) return "text-gray-600";
     return "text-gray-400";
   };
 
@@ -498,10 +512,6 @@ export default function SearchPage() {
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
               )}
             </div>
-            <p className="text-gray-600 text-sm mb-4">
-              Images found on the web that are visually similar to your uploaded logo (ranked by CLIP embedding similarity)
-            </p>
-            
             {loadingVisual && visualMatches.length === 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
@@ -540,8 +550,10 @@ export default function SearchPage() {
                           {match.source === 'partialMatch' && 'Partial'}
                           {match.source === 'visuallySimilar' && 'Similar'}
                         </span>
-                        <span className={`text-xl font-bold ${getSimilarityColor(match.similarityScore)}`}>
-                          {(match.similarityScore * 100).toFixed(0)}%
+                        <span
+                          className={`text-xl font-bold ${getVisualDisplayColor(visualMatchDisplayScores[index] ?? 0)}`}
+                        >
+                          {visualMatchDisplayScores[index] ?? 0}%
                         </span>
                       </div>
                       {match.entityLabel && (
