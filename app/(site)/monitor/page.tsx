@@ -7,6 +7,10 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 
 import { SearchIcon } from "@/components/icons";
+import {
+  visualMatchDisplayPercent,
+  visualMatchLabel,
+} from "@/lib/visualMatchDisplay";
 
 interface Watchlist {
   id: string;
@@ -818,44 +822,47 @@ export default function MonitorPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                         {selectedWatchlistVisualHits
                           .slice(0, 12)
-                          .map((match) => (
-                            <div
-                              key={match.id}
-                              className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all"
-                            >
-                              <div className="relative w-full aspect-square mb-2 bg-gray-100 rounded overflow-hidden">
-                                <img
-                                  alt={match.entity_label || "Similar image"}
-                                  className="w-full h-full object-contain p-2"
-                                  loading="lazy"
-                                  src={match.image_url}
-                                />
+                          .map((match) => {
+                            const displayPercent = visualMatchDisplayPercent(
+                              match.similarity_score,
+                            );
+
+                            return (
+                              <div
+                                key={match.id}
+                                className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all"
+                              >
+                                <div className="relative w-full aspect-square mb-2 bg-gray-100 rounded overflow-hidden">
+                                  <img
+                                    alt={match.entity_label || "Similar image"}
+                                    className="w-full h-full object-contain p-2"
+                                    loading="lazy"
+                                    src={match.image_url}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-gray-500 uppercase">
+                                    {visualMatchLabel(displayPercent)}
+                                  </span>
+                                  <span
+                                    className={`text-lg font-bold ${getSimilarityColor(match.similarity_score)}`}
+                                  >
+                                    {displayPercent}%
+                                  </span>
+                                </div>
+                                {match.page_url && (
+                                  <a
+                                    className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                    href={match.page_url}
+                                    rel="noopener noreferrer"
+                                    target="_blank"
+                                  >
+                                    View source
+                                  </a>
+                                )}
                               </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold text-gray-500 uppercase">
-                                  {match.source === "fullMatch" && "Full Match"}
-                                  {match.source === "partialMatch" && "Partial"}
-                                  {match.source === "visuallySimilar" &&
-                                    "Similar"}
-                                </span>
-                                <span
-                                  className={`text-lg font-bold ${getSimilarityColor(match.similarity_score)}`}
-                                >
-                                  {(match.similarity_score * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                              {match.page_url && (
-                                <a
-                                  className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                  href={match.page_url}
-                                  rel="noopener noreferrer"
-                                  target="_blank"
-                                >
-                                  View source
-                                </a>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                       </div>
                     </div>
                   )}

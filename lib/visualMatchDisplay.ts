@@ -4,15 +4,16 @@ export const VISUAL_MATCH_DISPLAY_THRESHOLD = 50;
 /**
  * CLIP cosine-similarity calibration anchors.
  *
- * CLIP scores for unrelated images cluster around 0.55. Visually-identical
- * images at different resolutions/formats land in 0.92–0.99 — never a hard
- * 1.0 — so we cap "identical" at 0.92. This way re-uploading the same logo
- * produces a stable 100% display even when the raw CLIP score wobbles by a
- * few percent between runs (different candidate URL, different file size,
- * etc.).
+ * CLIP scores for unrelated images cluster around 0.55. Re-encoded /
+ * re-scaled / lightly cropped copies of the same logo land in 0.85–0.99.
+ * We cap "identical" at 0.85 so a logo and its web-indexed copy register
+ * as 100% even when CLIP wobbles a few hundredths between runs. Anything
+ * Google found that's visibly the same brand mark should read as an
+ * Exact Match in the UI; small differences in size/format should not
+ * drag the display percent below 100%.
  */
 const CLIP_BASELINE = 0.55;
-const CLIP_IDENTICAL = 0.92;
+const CLIP_IDENTICAL = 0.85;
 
 /**
  * Map raw CLIP cosine similarity to a 0–100 display percent. Linearly
