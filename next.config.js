@@ -5,6 +5,10 @@ const nextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  // Move the dev-mode indicator off the footer/logo area (default is bottom-left).
+  devIndicators: {
+    position: 'bottom-right',
+  },
   // App uses /login; /signin is a common default elsewhere (e.g. auth providers, bookmarks).
   async redirects() {
     return [

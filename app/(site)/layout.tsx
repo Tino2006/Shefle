@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { SimpleNavbar } from "@/components/simple-navbar";
+import { SiteFooter } from "@/components/site-footer";
 import { getCurrentUserProfile } from "@/lib/auth";
 
 export default async function SiteLayout({
@@ -18,7 +19,8 @@ export default async function SiteLayout({
   return (
     <div className="relative flex flex-col min-h-screen">
       <SimpleNavbar />
-      <main className="flex-grow">{children}</main>
+      <main className="flex flex-1 flex-col">{children}</main>
+      <SiteFooter />
     </div>
   );
 }
