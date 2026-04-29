@@ -102,6 +102,13 @@ export function hasVisionCredentialEnvVar(): boolean {
 function getVisionClient() {
   const credentials = loadVisionCredentialsFromEnv();
 
+  // gRPC is unreliable on Vercel serverless (cold-start HTTP/2 issues surface as
+  // "undefined undefined: undefined" with code/details undefined). Force the
+  // HTTP/JSON fallback transport in serverless runtimes.
+  const useFallback = !!(
+    process.env.VERCEL || process.env.VERCEL_ENV === "production"
+  );
+
   if (credentials) {
     return new vision.ImageAnnotatorClient({
       credentials: {
@@ -109,6 +116,7 @@ function getVisionClient() {
         private_key: credentials.private_key,
       },
       projectId: credentials.project_id,
+      fallback: useFallback,
     });
   }
 
@@ -119,7 +127,7 @@ function getVisionClient() {
   }
 
   // Local dev fallback with gcloud ADC.
-  return new vision.ImageAnnotatorClient();
+  return new vision.ImageAnnotatorClient({ fallback: useFallback });
 }
 
 function serializeGoogleRpcError(err: unknown): Record<string, unknown> {
