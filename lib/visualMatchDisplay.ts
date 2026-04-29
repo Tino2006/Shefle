@@ -1,18 +1,21 @@
+// Display threshold: matches below this calibrated percent are hidden.
+export const VISUAL_MATCH_DISPLAY_THRESHOLD = 50;
+
 /**
- * CLIP cosine similarities for different logos often cluster in a narrow band
- * (e.g. ~0.62–0.95). Showing raw×100 reads as misleadingly high. Map scores
- * within one result set so the strongest candidate is 100% and weaker ones
- * spread toward the minimum shown in that set.
+ * Map raw CLIP cosine similarity (typically 0.4–1.0) to a 0–100 display
+ * percent. CLIP scores for unrelated images cluster around 0.5, so we
+ * linearly stretch [0.5, 1.0] → [0, 100] and clip outside that range.
  */
-export function visualMatchDisplayPercents(rawScores: number[]): number[] {
-  if (rawScores.length === 0) return [];
-  const min = Math.min(...rawScores);
-  const max = Math.max(...rawScores);
-  if (max <= min) {
-    return rawScores.map(() => 100);
-  }
-  return rawScores.map((s) => {
-    const pct = ((s - min) / (max - min)) * 100;
-    return Math.round(Math.min(100, Math.max(0, pct)));
-  });
+export function visualMatchDisplayPercent(rawScore: number): number {
+  const calibrated = (rawScore - 0.5) / 0.5;
+
+  return Math.round(Math.min(100, Math.max(0, calibrated * 100)));
+}
+
+/** Score-based label, driven by the calibrated display percent. */
+export function visualMatchLabel(displayPercent: number): string {
+  if (displayPercent >= 90) return "Exact Match";
+  if (displayPercent >= 75) return "Strong Match";
+
+  return "Similar";
 }

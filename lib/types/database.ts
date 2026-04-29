@@ -7,7 +7,7 @@ export type Profile = {
   company_name: string | null;
   phone: string | null;
   country: string | null;
-  role: 'user' | 'admin';
+  role: "user" | "admin";
   /** Uppercase alphanumeric; set at signup, immutable */
   referral_code?: string | null;
   /** Present when this account was referred; immutable after signup */
@@ -43,7 +43,7 @@ export type Subscription = {
   id: string;
   user_id: string;
   plan_id: string;
-  status: 'active' | 'cancelled' | 'expired' | 'past_due';
+  status: "active" | "cancelled" | "expired" | "past_due";
   stripe_subscription_id: string | null;
   stripe_customer_id: string | null;
   current_period_start: string | null;
@@ -56,7 +56,7 @@ export type Subscription = {
 export type Brand = {
   id: string;
   user_id: string;
-  registration_type: 'individual' | 'company';
+  registration_type: "individual" | "company";
   name: string | null;
   company_name: string | null;
   email: string;
@@ -71,7 +71,7 @@ export type Brand = {
   logo_file_url: string;
   business_license_url: string | null;
   passport_file_url: string | null;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected';
+  status: "pending" | "under_review" | "approved" | "rejected";
   rejection_reason: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -79,18 +79,42 @@ export type Brand = {
   updated_at: string;
 };
 
+export type TransactionStatus =
+  | "pending"
+  | "pending_verification"
+  | "succeeded"
+  | "failed"
+  | "refunded"
+  | "cancelled";
+
+export type PaymentProvider = "stripe" | "areeba";
+
 export type Transaction = {
   id: string;
   user_id: string;
   subscription_id: string | null;
   amount: number;
   currency: string;
-  status: 'pending' | 'succeeded' | 'failed' | 'refunded';
+  status: TransactionStatus;
+  provider: PaymentProvider;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
   payment_method_last4: string | null;
   receipt_url: string | null;
+  /** Areeba-specific fields (NULL for Stripe rows) */
+  transaction_reference: string | null;
+  plan_id: string | null;
+  billing_cycle: "monthly" | "yearly" | null;
+  areeba_order_id: string | null;
+  areeba_transaction_id: string | null;
+  response_code: string | null;
+  response_message: string | null;
+  authorization_code: string | null;
+  raw_request: Record<string, unknown> | null;
+  raw_response: Record<string, unknown> | null;
+  processed_at: string | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type ContactSubmission = {
@@ -100,7 +124,7 @@ export type ContactSubmission = {
   phone: string | null;
   message: string;
   file_url: string | null;
-  status: 'new' | 'read' | 'replied' | 'archived';
+  status: "new" | "read" | "replied" | "archived";
   created_at: string;
 };
 
@@ -116,7 +140,10 @@ export type UsageTracking = {
   created_at: string;
 };
 
-export type PortfolioTrademarkApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type PortfolioTrademarkApprovalStatus =
+  | "pending"
+  | "approved"
+  | "rejected";
 
 export type PortfolioTrademark = {
   id: string;

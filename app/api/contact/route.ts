@@ -1,6 +1,7 @@
-import { createAdminClient } from '@/lib/supabase/admin';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const contactSchema = z.object({
   name: z.string().min(1),
@@ -19,43 +20,41 @@ export async function POST(request: Request) {
     const supabase = createAdminClient();
 
     const { data: submission, error } = await supabase
-      .from('contact_submissions')
+      .from("contact_submissions")
       .insert({
         name: validatedData.name,
         email: validatedData.email,
         phone: validatedData.phone,
         message: validatedData.message,
         file_url: validatedData.fileUrl,
-        status: 'new',
+        status: "new",
       })
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     // TODO: Send email notification to admin
     // You can integrate with SendGrid, AWS SES, or Resend here
 
     return NextResponse.json({
-      message: 'Contact form submitted successfully. We will get back to you soon!',
+      message:
+        "Contact form submitted successfully. We will get back to you soon!",
       submission,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

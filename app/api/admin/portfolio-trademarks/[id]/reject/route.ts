@@ -1,7 +1,8 @@
-import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db/postgres';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { verifyAdminApi, isErrorResponse } from "@/lib/api-middleware";
+import { query } from "@/lib/db/postgres";
 
 const rejectSchema = z.object({
   reason: z.string().min(1),
@@ -9,10 +10,11 @@ const rejectSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const authResult = await verifyAdminApi();
+
     if (isErrorResponse(authResult)) {
       return authResult;
     }
@@ -32,26 +34,30 @@ export async function POST(
           reviewed_by = $2::uuid
         WHERE id = $1::bigint AND approval_status = 'pending'
       `,
-      [id, user.id, reason]
+      [id, user.id, reason],
     );
 
     if (result.rowCount === 0) {
       return NextResponse.json(
-        { error: 'No pending trademark found with this id' },
-        { status: 404 }
+        { error: "No pending trademark found with this id" },
+        { status: 404 },
       );
     }
 
-    return NextResponse.json({ message: 'Trademark rejected' });
+    return NextResponse.json({ message: "Trademark rejected" });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
-    console.error('Reject portfolio trademark error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Reject portfolio trademark error:", error);
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

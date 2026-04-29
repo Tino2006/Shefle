@@ -1,21 +1,27 @@
-import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
-import { NextResponse } from 'next/server';
-import { queryRows } from '@/lib/db/postgres';
-import { isMissingPortfolioApprovalColumn } from '@/lib/db/portfolioApprovalMigration';
-import type { AdminPortfolioTrademarkRow } from '@/lib/types/database';
+import type { AdminPortfolioTrademarkRow } from "@/lib/types/database";
+
+import { NextResponse } from "next/server";
+
+import { verifyAdminApi, isErrorResponse } from "@/lib/api-middleware";
+import { queryRows } from "@/lib/db/postgres";
+import { isMissingPortfolioApprovalColumn } from "@/lib/db/portfolioApprovalMigration";
 
 export async function GET(request: Request) {
   try {
     const authResult = await verifyAdminApi();
+
     if (isErrorResponse(authResult)) {
       return authResult;
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'pending';
+    const status = searchParams.get("status") || "pending";
 
-    if (!['pending', 'approved', 'rejected'].includes(status)) {
-      return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+    if (!["pending", "approved", "rejected"].includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid status filter" },
+        { status: 400 },
+      );
     }
 
     const trademarks = await queryRows<AdminPortfolioTrademarkRow>(
@@ -43,7 +49,7 @@ export async function GET(request: Request) {
         WHERE pt.approval_status = $1
         ORDER BY pt.created_at DESC
       `,
-      [status]
+      [status],
     );
 
     return NextResponse.json({ trademarks });
@@ -51,14 +57,18 @@ export async function GET(request: Request) {
     if (isMissingPortfolioApprovalColumn(error)) {
       return NextResponse.json(
         {
-          error: 'Database migration required',
+          error: "Database migration required",
           message:
-            'Add approval columns to portfolio_trademarks: run portfolio-schema.sql (end section) or portfolio-trademark-approval.sql after supabase-rbac-migration.sql.',
+            "Add approval columns to portfolio_trademarks: run portfolio-schema.sql (end section) or portfolio-trademark-approval.sql after supabase-rbac-migration.sql.",
         },
-        { status: 503 }
+        { status: 503 },
       );
     }
-    console.error('Admin portfolio trademarks error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Admin portfolio trademarks error:", error);
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

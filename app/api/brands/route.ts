@@ -1,9 +1,10 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
 
 const brandSchema = z.object({
-  registrationType: z.enum(['individual', 'company']),
+  registrationType: z.enum(["individual", "company"]),
   name: z.string().optional(),
   companyName: z.string().optional(),
   email: z.string().email(),
@@ -27,40 +28,49 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Validate required fields based on registration type
-    if (validatedData.registrationType === 'company' && !validatedData.companyName) {
+    if (
+      validatedData.registrationType === "company" &&
+      !validatedData.companyName
+    ) {
       return NextResponse.json(
-        { error: 'Company name is required for company registration' },
-        { status: 400 }
+        { error: "Company name is required for company registration" },
+        { status: 400 },
       );
     }
 
-    if (validatedData.registrationType === 'individual' && !validatedData.name) {
+    if (
+      validatedData.registrationType === "individual" &&
+      !validatedData.name
+    ) {
       return NextResponse.json(
-        { error: 'Name is required for individual registration' },
-        { status: 400 }
+        { error: "Name is required for individual registration" },
+        { status: 400 },
       );
     }
 
-    if (validatedData.registrationType === 'individual' && !validatedData.passportFileUrl) {
+    if (
+      validatedData.registrationType === "individual" &&
+      !validatedData.passportFileUrl
+    ) {
       return NextResponse.json(
-        { error: 'Passport is required for individual registration' },
-        { status: 400 }
+        { error: "Passport is required for individual registration" },
+        { status: 400 },
       );
     }
 
     // Insert brand registration
     const { data: brand, error } = await supabase
-      .from('brands')
+      .from("brands")
       .insert({
         user_id: user.id,
         registration_type: validatedData.registrationType,
@@ -78,33 +88,30 @@ export async function POST(request: Request) {
         logo_file_url: validatedData.logoFileUrl,
         business_license_url: validatedData.businessLicenseUrl,
         passport_file_url: validatedData.passportFileUrl,
-        status: 'pending',
+        status: "pending",
       })
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({
-      message: 'Brand registration submitted successfully',
+      message: "Brand registration submitted successfully",
       brand,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }
@@ -113,33 +120,30 @@ export async function GET() {
   try {
     const supabase = await createClient();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const { data: brands, error } = await supabase
-      .from('brands')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .from("brands")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({ brands });
   } catch (error) {
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

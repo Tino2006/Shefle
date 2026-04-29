@@ -1,6 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
 
 const resetRequestSchema = z.object({
   email: z.string().email(),
@@ -8,8 +9,10 @@ const resetRequestSchema = z.object({
 
 function parseRetryAfterSeconds(message: string): number | null {
   const match = message.match(/after\s+(\d+)\s+seconds?/i);
+
   if (!match) return null;
   const seconds = Number(match[1]);
+
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
     const requestOrigin = new URL(request.url).origin;
     const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
     const appUrl =
-      configuredAppUrl && !configuredAppUrl.includes('localhost')
+      configuredAppUrl && !configuredAppUrl.includes("localhost")
         ? configuredAppUrl
         : requestOrigin;
 
@@ -35,37 +38,35 @@ export async function POST(request: Request) {
     if (error) {
       const isRateLimitError =
         error.status === 429 || /rate limit exceeded/i.test(error.message);
+
       if (isRateLimitError) {
         return NextResponse.json(
           {
-            error: 'Too many reset requests. Please wait before trying again.',
-            code: 'RATE_LIMIT_EXCEEDED',
+            error: "Too many reset requests. Please wait before trying again.",
+            code: "RATE_LIMIT_EXCEEDED",
             retryAfterSeconds: parseRetryAfterSeconds(error.message),
           },
-          { status: 429 }
+          { status: 429 },
         );
       }
 
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({
-      message: 'Password reset email sent. Please check your inbox.',
+      message: "Password reset email sent. Please check your inbox.",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

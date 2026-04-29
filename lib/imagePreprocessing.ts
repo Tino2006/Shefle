@@ -2,7 +2,7 @@
  * Image preprocessing utilities for OCR accuracy improvement
  */
 
-import sharp from 'sharp';
+import sharp from "sharp";
 
 export interface PreprocessingOptions {
   targetWidth?: number;
@@ -12,7 +12,7 @@ export interface PreprocessingOptions {
 
 /**
  * Preprocess image for OCR with sharp pipeline
- * 
+ *
  * Pipeline:
  * 1. Auto-rotate based on EXIF orientation
  * 2. Resize to target width (1200-2000px, keep aspect ratio)
@@ -20,27 +20,23 @@ export interface PreprocessingOptions {
  * 4. Normalize contrast
  * 5. Apply threshold (binarization)
  * 6. Optional: invert colors (for white-on-dark logos)
- * 
+ *
  * @param buffer - Input image buffer
  * @param options - Preprocessing options
  * @returns Processed PNG buffer
  */
 export async function preprocessImageForOCR(
   buffer: Buffer,
-  options: PreprocessingOptions = {}
+  options: PreprocessingOptions = {},
 ): Promise<Buffer> {
-  const {
-    targetWidth = 1600,
-    threshold = 160,
-    invert = false,
-  } = options;
+  const { targetWidth = 1600, threshold = 160, invert = false } = options;
 
   let pipeline = sharp(buffer)
     // Step 1: Auto-rotate based on EXIF orientation
     .rotate()
     // Step 2: Resize to target width (keep aspect ratio, allow enlargement)
     .resize(targetWidth, null, {
-      fit: 'inside',
+      fit: "inside",
       withoutEnlargement: false,
     })
     // Step 3: Convert to grayscale
@@ -66,7 +62,7 @@ export async function preprocessImageForOCR(
  * Returns the result with higher confidence and longer text
  */
 export async function createPreprocessingVariants(
-  buffer: Buffer
+  buffer: Buffer,
 ): Promise<{ normal: Buffer; inverted: Buffer }> {
   const [normal, inverted] = await Promise.all([
     preprocessImageForOCR(buffer, { threshold: 160, invert: false }),

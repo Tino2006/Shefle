@@ -1,8 +1,9 @@
 "use client";
 
+import type { PortfolioTrademark } from "@/lib/types/database";
+
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import type { PortfolioTrademark } from "@/lib/types/database";
 
 export default function PortfolioPage() {
   const [trademarks, setTrademarks] = useState<PortfolioTrademark[]>([]);
@@ -18,13 +19,17 @@ export default function PortfolioPage() {
   const [regDate, setRegDate] = useState("");
   const [markName, setMarkName] = useState("");
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
-  const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
+  const [certificatePreview, setCertificatePreview] = useState<string | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isImageFileUrl = (url: string) => /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
+  const isImageFileUrl = (url: string) =>
+    /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
 
   const statusBadgeClass = (status: PortfolioTrademark["approval_status"]) => {
     if (status === "approved") return "bg-green-100 text-green-800";
     if (status === "rejected") return "bg-red-100 text-red-800";
+
     return "bg-yellow-100 text-yellow-800";
   };
 
@@ -36,8 +41,10 @@ export default function PortfolioPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/portfolio");
+
       if (res.ok) {
         const data = await res.json();
+
         setTrademarks(data.trademarks || []);
       }
     } catch (error) {
@@ -49,6 +56,7 @@ export default function PortfolioPage() {
 
   const handleCertificateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+
     if (!file) return;
 
     const isImage = file.type.startsWith("image/");
@@ -56,18 +64,22 @@ export default function PortfolioPage() {
 
     if (!isImage && !isPdf) {
       alert("Please upload an image (PNG, JPG, WEBP) or PDF certificate.");
+
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
       alert("Certificate must be under 8MB.");
+
       return;
     }
 
     setCertificateFile(file);
     if (isImage) {
       const reader = new FileReader();
+
       reader.onload = () => setCertificatePreview(reader.result as string);
       reader.readAsDataURL(file);
+
       return;
     }
 
@@ -92,6 +104,7 @@ export default function PortfolioPage() {
 
   const addNicheClass = () => {
     const value = classPickerValue;
+
     if (nicheClasses.includes(value)) {
       return;
     }
@@ -106,14 +119,23 @@ export default function PortfolioPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regNumber.trim() || !markName.trim() || !country.trim() || !regDate || nicheClasses.length === 0 || !certificateFile) {
+    if (
+      !regNumber.trim() ||
+      !markName.trim() ||
+      !country.trim() ||
+      !regDate ||
+      nicheClasses.length === 0 ||
+      !certificateFile
+    ) {
       alert("Please fill in all required fields.");
+
       return;
     }
 
     setCreating(true);
     try {
       const formData = new FormData();
+
       formData.append("file", certificateFile);
       formData.append("fileType", "portfolio-certificate");
 
@@ -124,8 +146,10 @@ export default function PortfolioPage() {
 
       if (!uploadRes.ok) {
         const err = await uploadRes.json();
+
         alert(`Certificate upload failed: ${err.error || "Unknown error"}`);
         setCreating(false);
+
         return;
       }
 
@@ -149,9 +173,12 @@ export default function PortfolioPage() {
         resetForm();
         setShowCreateForm(false);
         loadTrademarks();
-        alert("Trademark submitted. It will appear as pending until an administrator approves it.");
+        alert(
+          "Trademark submitted. It will appear as pending until an administrator approves it.",
+        );
       } else {
         const error = await res.json();
+
         alert(`Failed to create trademark: ${error.error || "Unknown error"}`);
       }
     } catch (error) {
@@ -163,13 +190,18 @@ export default function PortfolioPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this trademark? Any monitors linked to it will be unlinked.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this trademark? Any monitors linked to it will be unlinked.",
+      )
+    ) {
       return;
     }
 
     setDeleting((prev) => ({ ...prev, [id]: true }));
     try {
       const res = await fetch(`/api/portfolio/${id}`, { method: "DELETE" });
+
       if (res.ok) {
         loadTrademarks();
       } else {
@@ -189,8 +221,8 @@ export default function PortfolioPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
           <Link
-            href="/"
             className="inline-block text-sm font-semibold text-red-800 hover:text-red-900"
+            href="/"
           >
             &larr; Back to Home
           </Link>
@@ -201,13 +233,14 @@ export default function PortfolioPage() {
                 Trademark Portfolio
               </h1>
               <p className="mt-1 text-sm text-gray-600 sm:text-base">
-                Register your trademarks for review. Once approved by our team, you can use them for monitoring.
+                Register your trademarks for review. Once approved by our team,
+                you can use them for monitoring.
               </p>
             </div>
             <button
+              className="w-full shrink-0 rounded-lg bg-red-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900 sm:w-auto sm:px-6 sm:py-3 sm:text-base"
               type="button"
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="w-full shrink-0 rounded-lg bg-red-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900 sm:w-auto sm:px-6 sm:py-3 sm:text-base"
             >
               {showCreateForm ? "Cancel" : "+ Add Trademark"}
             </button>
@@ -222,19 +255,19 @@ export default function PortfolioPage() {
             <h2 className="mb-3 text-lg font-bold text-gray-900 sm:mb-4 sm:text-xl">
               Add New Trademark
             </h2>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form className="space-y-4" onSubmit={handleCreate}>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
                     Registration Number <span className="text-red-500">*</span>
                   </label>
                   <input
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+                    placeholder="e.g. 1234567"
                     type="text"
                     value={regNumber}
                     onChange={(e) => setRegNumber(e.target.value)}
-                    placeholder="e.g. 1234567"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    required
                   />
                 </div>
 
@@ -243,12 +276,12 @@ export default function PortfolioPage() {
                     Mark Name <span className="text-red-500">*</span>
                   </label>
                   <input
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+                    placeholder="e.g. My Brand"
                     type="text"
                     value={markName}
                     onChange={(e) => setMarkName(e.target.value)}
-                    placeholder="e.g. My Brand"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    required
                   />
                 </div>
 
@@ -257,12 +290,12 @@ export default function PortfolioPage() {
                     Country <span className="text-red-500">*</span>
                   </label>
                   <input
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+                    placeholder="e.g. United States"
                     type="text"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                    placeholder="e.g. United States"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    required
                   />
                 </div>
 
@@ -273,12 +306,15 @@ export default function PortfolioPage() {
                   <div className="rounded-lg border border-gray-300 p-3 space-y-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <select
-                        value={classPickerValue}
-                        onChange={(e) => setClassPickerValue(parseInt(e.target.value, 10))}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20 sm:max-w-[180px]"
+                        value={classPickerValue}
+                        onChange={(e) =>
+                          setClassPickerValue(parseInt(e.target.value, 10))
+                        }
                       >
                         {Array.from({ length: 45 }, (_, index) => {
                           const value = index + 1;
+
                           return (
                             <option key={value} value={value}>
                               Class {value}
@@ -287,34 +323,37 @@ export default function PortfolioPage() {
                         })}
                       </select>
                       <button
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={nicheClasses.includes(classPickerValue)}
                         type="button"
                         onClick={addNicheClass}
-                        disabled={nicheClasses.includes(classPickerValue)}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Add class
                       </button>
                       <button
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                         type="button"
                         onClick={() => setNicheClasses([])}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                       >
                         Clear
                       </button>
                     </div>
 
                     {nicheClasses.length === 0 ? (
-                      <p className="text-sm text-gray-500">No classes selected yet.</p>
+                      <p className="text-sm text-gray-500">
+                        No classes selected yet.
+                      </p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {nicheClasses.map((value) => (
                           <button
                             key={value}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-900 transition-colors hover:bg-red-100"
                             type="button"
                             onClick={() => removeNicheClass(value)}
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-900 transition-colors hover:bg-red-100"
                           >
-                            Class {value} <span className="ml-2 text-red-600">×</span>
+                            Class {value}{" "}
+                            <span className="ml-2 text-red-600">×</span>
                           </button>
                         ))}
                       </div>
@@ -327,11 +366,11 @@ export default function PortfolioPage() {
                     Registration Date <span className="text-red-500">*</span>
                   </label>
                   <input
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
                     type="date"
                     value={regDate}
                     onChange={(e) => setRegDate(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    required
                   />
                 </div>
               </div>
@@ -345,84 +384,110 @@ export default function PortfolioPage() {
                   <div className="flex items-center gap-4">
                     <div className="relative w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
                       <img
-                        src={certificatePreview}
                         alt="Certificate preview"
                         className="w-full h-full object-contain p-1"
+                        src={certificatePreview}
                       />
                     </div>
                     <button
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
                       type="button"
                       onClick={clearCertificate}
-                      className="text-sm text-red-600 hover:text-red-800 font-medium"
                     >
                       Remove file
                     </button>
                   </div>
                 ) : certificateFile ? (
                   <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <svg className="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+                    <svg
+                      className="h-6 w-6 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                      />
                     </svg>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">{certificateFile.name}</p>
-                      <p className="text-xs text-gray-500">PDF certificate selected</p>
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {certificateFile.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        PDF certificate selected
+                      </p>
                     </div>
                     <button
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
                       type="button"
                       onClick={clearCertificate}
-                      className="text-sm text-red-600 hover:text-red-800 font-medium"
                     >
                       Remove
                     </button>
                   </div>
                 ) : (
                   <div
-                    onClick={() => fileInputRef.current?.click()}
                     className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 transition-colors hover:border-red-300 hover:bg-red-50/30"
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     <div className="text-center">
                       <svg
                         className="mx-auto h-8 w-8 text-gray-400"
                         fill="none"
-                        viewBox="0 0 24 24"
                         stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
                         <path
+                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={1.5}
-                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                         />
                       </svg>
-                      <p className="mt-1 text-sm text-gray-600">Click to upload certificate</p>
-                      <p className="text-xs text-gray-400">PDF, PNG, JPG, WEBP up to 8MB</p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Click to upload certificate
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        PDF, PNG, JPG, WEBP up to 8MB
+                      </p>
                     </div>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
-                  type="file"
                   accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
-                  onChange={handleCertificateChange}
                   className="hidden"
+                  type="file"
+                  onChange={handleCertificateChange}
                 />
               </div>
 
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:gap-3 sm:pt-2">
                 <button
-                  type="submit"
-                  disabled={creating || !regNumber.trim() || !markName.trim() || !country.trim() || !regDate || nicheClasses.length === 0 || !certificateFile}
                   className="w-full rounded-lg bg-red-800 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto sm:px-6 sm:py-2"
+                  disabled={
+                    creating ||
+                    !regNumber.trim() ||
+                    !markName.trim() ||
+                    !country.trim() ||
+                    !regDate ||
+                    nicheClasses.length === 0 ||
+                    !certificateFile
+                  }
+                  type="submit"
                 >
                   {creating ? "Adding..." : "Add Trademark"}
                 </button>
                 <button
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
                   type="button"
                   onClick={() => {
                     setShowCreateForm(false);
                     resetForm();
                   }}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
                 >
                   Cancel
                 </button>
@@ -434,7 +499,7 @@ export default function PortfolioPage() {
         {/* Trademarks List */}
         {loading ? (
           <div className="flex justify-center items-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-800"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-800" />
           </div>
         ) : trademarks.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
@@ -442,24 +507,26 @@ export default function PortfolioPage() {
               <svg
                 className="mx-auto h-12 w-12"
                 fill="none"
-                viewBox="0 0 24 24"
                 stroke="currentColor"
+                viewBox="0 0 24 24"
               >
                 <path
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
             </div>
-            <p className="text-gray-600 font-medium">No trademarks in your portfolio</p>
+            <p className="text-gray-600 font-medium">
+              No trademarks in your portfolio
+            </p>
             <p className="text-sm text-gray-500 mt-1">
               Add your registered trademarks to start monitoring them
             </p>
             <button
-              onClick={() => setShowCreateForm(true)}
               className="mt-4 text-red-800 hover:text-red-900 font-semibold"
+              onClick={() => setShowCreateForm(true)}
             >
               Add your first trademark
             </button>
@@ -475,9 +542,9 @@ export default function PortfolioPage() {
                   {tm.logo_url && isImageFileUrl(tm.logo_url) ? (
                     <div className="w-16 h-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
                       <img
-                        src={tm.logo_url}
                         alt={tm.mark_name || tm.registration_number}
                         className="w-full h-full object-contain p-1"
+                        src={tm.logo_url}
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                         }}
@@ -488,14 +555,14 @@ export default function PortfolioPage() {
                       <svg
                         className="h-8 w-8 text-gray-300"
                         fill="none"
-                        viewBox="0 0 24 24"
                         stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
                         <path
+                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={1.5}
-                          d="M7 7h10M7 11h10M7 15h6m5 4H6a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z"
                         />
                       </svg>
                     </div>
@@ -518,9 +585,12 @@ export default function PortfolioPage() {
                     <p className="text-sm text-gray-500">
                       Reg. #{tm.registration_number}
                     </p>
-                    {tm.approval_status === "rejected" && tm.rejection_reason && (
-                      <p className="mt-2 text-sm text-red-700">{tm.rejection_reason}</p>
-                    )}
+                    {tm.approval_status === "rejected" &&
+                      tm.rejection_reason && (
+                        <p className="mt-2 text-sm text-red-700">
+                          {tm.rejection_reason}
+                        </p>
+                      )}
                   </div>
                 </div>
 
@@ -532,7 +602,11 @@ export default function PortfolioPage() {
                   <div>
                     <span className="text-gray-500">Niche Class</span>
                     <p className="font-medium text-gray-900">
-                      Class {(tm.niche_classes && tm.niche_classes.length > 0 ? tm.niche_classes : [tm.niche_class]).join(", ")}
+                      Class{" "}
+                      {(tm.niche_classes && tm.niche_classes.length > 0
+                        ? tm.niche_classes
+                        : [tm.niche_class]
+                      ).join(", ")}
                     </p>
                   </div>
                   <div className="col-span-2">
@@ -546,30 +620,32 @@ export default function PortfolioPage() {
                 <div className="mt-4 flex gap-2 flex-wrap">
                   {tm.logo_url && (
                     <a
-                      href={tm.logo_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-red-600"
+                      href={tm.logo_url}
+                      rel="noopener noreferrer"
+                      target="_blank"
                     >
                       Certificate
                     </a>
                   )}
                   {tm.approval_status === "approved" ? (
                     <Link
-                      href="/monitor"
                       className="flex-1 min-w-[120px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-800 transition-colors hover:bg-red-100"
+                      href="/monitor"
                     >
                       Monitor
                     </Link>
                   ) : (
                     <span className="flex-1 min-w-[120px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center text-sm font-medium text-gray-500">
-                      {tm.approval_status === "pending" ? "Awaiting approval" : "Not available for monitor"}
+                      {tm.approval_status === "pending"
+                        ? "Awaiting approval"
+                        : "Not available for monitor"}
                     </span>
                   )}
                   <button
-                    onClick={() => handleDelete(tm.id)}
-                    disabled={deleting[tm.id]}
                     className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={deleting[tm.id]}
+                    onClick={() => handleDelete(tm.id)}
                   >
                     {deleting[tm.id] ? "..." : "Delete"}
                   </button>

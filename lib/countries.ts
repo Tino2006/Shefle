@@ -2,61 +2,293 @@ export type CountryOption = { code: string; name: string };
 
 /** Old profile / form values before full country list */
 const LEGACY_TO_ISO: Record<string, string> = {
-  us: 'US',
-  ca: 'CA',
-  uk: 'GB',
-  gb: 'GB',
-  au: 'AU',
-  lb: 'LB',
-  other: '',
+  us: "US",
+  ca: "CA",
+  uk: "GB",
+  gb: "GB",
+  au: "AU",
+  lb: "LB",
+  other: "",
 };
 
 /** Minimal fallback if Intl.supportedValuesOf is unavailable */
 const FALLBACK_CODES = [
-  'AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AW', 'AX', 'AZ',
-  'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BV', 'BW', 'BY', 'BZ',
-  'CA', 'CC', 'CD', 'CF', 'CG', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN', 'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ',
-  'DE', 'DJ', 'DK', 'DM', 'DO', 'DZ',
-  'EC', 'EE', 'EG', 'EH', 'ER', 'ES', 'ET',
-  'FI', 'FJ', 'FK', 'FM', 'FO', 'FR',
-  'GA', 'GB', 'GD', 'GE', 'GF', 'GG', 'GH', 'GI', 'GL', 'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY',
-  'HK', 'HM', 'HN', 'HR', 'HT', 'HU',
-  'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR', 'IS', 'IT',
-  'JE', 'JM', 'JO', 'JP',
-  'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ',
-  'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'LY',
-  'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ',
-  'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ',
-  'OM',
-  'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM', 'PN', 'PR', 'PS', 'PT', 'PW', 'PY',
-  'QA',
-  'RE', 'RO', 'RS', 'RU', 'RW',
-  'SA', 'SB', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM', 'SN', 'SO', 'SR', 'SS', 'ST', 'SV', 'SX', 'SY', 'SZ',
-  'TC', 'TD', 'TF', 'TG', 'TH', 'TJ', 'TK', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW', 'TZ',
-  'UA', 'UG', 'UM', 'US', 'UY', 'UZ',
-  'VA', 'VC', 'VE', 'VG', 'VI', 'VN', 'VU',
-  'WF', 'WS',
-  'YE', 'YT',
-  'ZA', 'ZM', 'ZW',
+  "AD",
+  "AE",
+  "AF",
+  "AG",
+  "AI",
+  "AL",
+  "AM",
+  "AO",
+  "AQ",
+  "AR",
+  "AS",
+  "AT",
+  "AU",
+  "AW",
+  "AX",
+  "AZ",
+  "BA",
+  "BB",
+  "BD",
+  "BE",
+  "BF",
+  "BG",
+  "BH",
+  "BI",
+  "BJ",
+  "BL",
+  "BM",
+  "BN",
+  "BO",
+  "BQ",
+  "BR",
+  "BS",
+  "BT",
+  "BV",
+  "BW",
+  "BY",
+  "BZ",
+  "CA",
+  "CC",
+  "CD",
+  "CF",
+  "CG",
+  "CH",
+  "CI",
+  "CK",
+  "CL",
+  "CM",
+  "CN",
+  "CO",
+  "CR",
+  "CU",
+  "CV",
+  "CW",
+  "CX",
+  "CY",
+  "CZ",
+  "DE",
+  "DJ",
+  "DK",
+  "DM",
+  "DO",
+  "DZ",
+  "EC",
+  "EE",
+  "EG",
+  "EH",
+  "ER",
+  "ES",
+  "ET",
+  "FI",
+  "FJ",
+  "FK",
+  "FM",
+  "FO",
+  "FR",
+  "GA",
+  "GB",
+  "GD",
+  "GE",
+  "GF",
+  "GG",
+  "GH",
+  "GI",
+  "GL",
+  "GM",
+  "GN",
+  "GP",
+  "GQ",
+  "GR",
+  "GS",
+  "GT",
+  "GU",
+  "GW",
+  "GY",
+  "HK",
+  "HM",
+  "HN",
+  "HR",
+  "HT",
+  "HU",
+  "ID",
+  "IE",
+  "IL",
+  "IM",
+  "IN",
+  "IO",
+  "IQ",
+  "IR",
+  "IS",
+  "IT",
+  "JE",
+  "JM",
+  "JO",
+  "JP",
+  "KE",
+  "KG",
+  "KH",
+  "KI",
+  "KM",
+  "KN",
+  "KP",
+  "KR",
+  "KW",
+  "KY",
+  "KZ",
+  "LA",
+  "LB",
+  "LC",
+  "LI",
+  "LK",
+  "LR",
+  "LS",
+  "LT",
+  "LU",
+  "LV",
+  "LY",
+  "MA",
+  "MC",
+  "MD",
+  "ME",
+  "MF",
+  "MG",
+  "MH",
+  "MK",
+  "ML",
+  "MM",
+  "MN",
+  "MO",
+  "MP",
+  "MQ",
+  "MR",
+  "MS",
+  "MT",
+  "MU",
+  "MV",
+  "MW",
+  "MX",
+  "MY",
+  "MZ",
+  "NA",
+  "NC",
+  "NE",
+  "NF",
+  "NG",
+  "NI",
+  "NL",
+  "NO",
+  "NP",
+  "NR",
+  "NU",
+  "NZ",
+  "OM",
+  "PA",
+  "PE",
+  "PF",
+  "PG",
+  "PH",
+  "PK",
+  "PL",
+  "PM",
+  "PN",
+  "PR",
+  "PS",
+  "PT",
+  "PW",
+  "PY",
+  "QA",
+  "RE",
+  "RO",
+  "RS",
+  "RU",
+  "RW",
+  "SA",
+  "SB",
+  "SC",
+  "SD",
+  "SE",
+  "SG",
+  "SH",
+  "SI",
+  "SJ",
+  "SK",
+  "SL",
+  "SM",
+  "SN",
+  "SO",
+  "SR",
+  "SS",
+  "ST",
+  "SV",
+  "SX",
+  "SY",
+  "SZ",
+  "TC",
+  "TD",
+  "TF",
+  "TG",
+  "TH",
+  "TJ",
+  "TK",
+  "TL",
+  "TM",
+  "TN",
+  "TO",
+  "TR",
+  "TT",
+  "TV",
+  "TW",
+  "TZ",
+  "UA",
+  "UG",
+  "UM",
+  "US",
+  "UY",
+  "UZ",
+  "VA",
+  "VC",
+  "VE",
+  "VG",
+  "VI",
+  "VN",
+  "VU",
+  "WF",
+  "WS",
+  "YE",
+  "YT",
+  "ZA",
+  "ZM",
+  "ZW",
 ];
 
 let cachedOptions: CountryOption[] | null = null;
 
 function buildFromIntl(): CountryOption[] | null {
   try {
-    const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
-    if (typeof intl.supportedValuesOf !== 'function') return null;
-    const raw = intl.supportedValuesOf('region');
-    const display = new Intl.DisplayNames(['en'], { type: 'region' });
+    const intl = Intl as unknown as {
+      supportedValuesOf?: (key: string) => string[];
+    };
+
+    if (typeof intl.supportedValuesOf !== "function") return null;
+    const raw = intl.supportedValuesOf("region");
+    const display = new Intl.DisplayNames(["en"], { type: "region" });
     const list: CountryOption[] = [];
+
     for (const code of raw) {
       if (!/^[A-Z]{2}$/.test(code)) continue;
-      if (code === 'ZZ') continue;
+      if (code === "ZZ") continue;
       const name = display.of(code);
+
       if (!name || name === code) continue;
       list.push({ code, name });
     }
-    list.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+    list.sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
+    );
+
     return list.length > 0 ? list : null;
   } catch {
     return null;
@@ -64,11 +296,14 @@ function buildFromIntl(): CountryOption[] | null {
 }
 
 function buildFromFallback(): CountryOption[] {
-  const display = new Intl.DisplayNames(['en'], { type: 'region' });
+  const display = new Intl.DisplayNames(["en"], { type: "region" });
+
   return FALLBACK_CODES.map((code) => ({
     code,
     name: display.of(code) || code,
-  })).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  })).sort((a, b) =>
+    a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
+  );
 }
 
 /**
@@ -78,16 +313,22 @@ function buildFromFallback(): CountryOption[] {
 export function getCountryOptions(): CountryOption[] {
   if (cachedOptions) return cachedOptions;
   cachedOptions = buildFromIntl() ?? buildFromFallback();
+
   return cachedOptions;
 }
 
 /** Map stored profile country to select value (ISO alpha-2 or empty). */
-export function normalizeCountryForSelect(stored: string | null | undefined): string {
-  if (!stored) return '';
+export function normalizeCountryForSelect(
+  stored: string | null | undefined,
+): string {
+  if (!stored) return "";
   const t = stored.trim();
-  if (!t) return '';
+
+  if (!t) return "";
   const legacy = LEGACY_TO_ISO[t.toLowerCase()];
+
   if (legacy !== undefined) return legacy;
   if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase();
+
   return t;
 }

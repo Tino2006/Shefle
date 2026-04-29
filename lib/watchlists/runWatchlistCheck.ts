@@ -1,10 +1,14 @@
-import { query, queryOne, queryRows } from '@/lib/db/postgres';
-import { detectImageEntities } from '@/lib/googleVision';
+import { query, queryOne, queryRows } from "@/lib/db/postgres";
+import { detectImageEntities } from "@/lib/googleVision";
 import {
   generateImageEmbedding,
   generateImageEmbeddingFromUrl,
   cosineSimilarity,
-} from '@/lib/imageEmbeddings';
+} from "@/lib/imageEmbeddings";
+import {
+  visualMatchDisplayPercent,
+  VISUAL_MATCH_DISPLAY_THRESHOLD,
+} from "@/lib/visualMatchDisplay";
 
 interface TrademarkSearchResult {
   id: string;
@@ -15,11 +19,14 @@ interface TrademarkSearchResult {
   rank: number;
 }
 
-function calculateRiskLevel(similarity: number): 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' {
-  if (similarity >= 0.8) return 'HIGH';
-  if (similarity >= 0.6) return 'MEDIUM';
-  if (similarity >= 0.4) return 'LOW';
-  return 'VERY_LOW';
+function calculateRiskLevel(
+  similarity: number,
+): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" {
+  if (similarity >= 0.8) return "HIGH";
+  if (similarity >= 0.6) return "MEDIUM";
+  if (similarity >= 0.4) return "LOW";
+
+  return "VERY_LOW";
 }
 
 export interface WatchlistCheckResult {
@@ -32,7 +39,9 @@ export interface WatchlistCheckResult {
   new_visual_hits: number;
 }
 
-export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistCheckResult> {
+export async function runWatchlistCheck(
+  watchlistId: string,
+): Promise<WatchlistCheckResult> {
   const watchlist = await queryOne<{
     id: string;
     query: string;
@@ -52,17 +61,17 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
       FROM public.watchlists
       WHERE id = $1
     `,
-    [watchlistId]
+    [watchlistId],
   );
 
   if (!watchlist) {
-    throw new Error('Watchlist not found');
+    throw new Error("Watchlist not found");
   }
 
   const statusValues = watchlist.status_filter
-    .split(',')
+    .split(",")
     .map((s) => s.trim().toUpperCase())
-    .filter((s) => ['ACTIVE', 'PENDING', 'DEAD'].includes(s));
+    .filter((s) => ["ACTIVE", "PENDING", "DEAD"].includes(s));
 
   const searchQuery = `
     WITH candidates AS (
@@ -79,7 +88,7 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
           LOWER(unaccent(REPLACE($1, ' ', '')))
         ) AS trgm_nospace_score
       FROM public.trademarks t
-      ${watchlist.class_filter ? 'LEFT JOIN public.trademark_classes tc ON t.id = tc.trademark_id' : ''}
+      ${watchlist.class_filter ? "LEFT JOIN public.trademark_classes tc ON t.id = tc.trademark_id" : ""}
       WHERE
         t.mark_text IS NOT NULL
         AND (
@@ -99,7 +108,7 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
             ) > 0.2
         )
         AND t.status_norm = ANY($2)
-        ${watchlist.class_filter ? 'AND tc.nice_class = ANY($3)' : ''}
+        ${watchlist.class_filter ? "AND tc.nice_class = ANY($3)" : ""}
       GROUP BY t.id
     )
     SELECT
@@ -127,18 +136,23 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
       CASE
         WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
         ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
-      END >= $${watchlist.class_filter ? '4' : '3'}
+      END >= $${watchlist.class_filter ? "4" : "3"}
     ORDER BY rank DESC, sim_final DESC
     LIMIT 100
   `;
 
   const queryParams: any[] = [watchlist.query, statusValues];
+
   if (watchlist.class_filter) queryParams.push(watchlist.class_filter);
   queryParams.push(watchlist.min_similarity);
 
-  const results = await queryRows<TrademarkSearchResult>(searchQuery, queryParams);
+  const results = await queryRows<TrademarkSearchResult>(
+    searchQuery,
+    queryParams,
+  );
 
   let insertedCount = 0;
+
   for (const hit of results) {
     try {
       const result = await query(
@@ -149,42 +163,61 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
           ON CONFLICT (watchlist_id, trademark_serial_number) DO NOTHING
           RETURNING id
         `,
-        [watchlistId, hit.id, hit.serial_number, hit.sim_final, calculateRiskLevel(hit.sim_final)]
+        [
+          watchlistId,
+          hit.id,
+          hit.serial_number,
+          hit.sim_final,
+          calculateRiskLevel(hit.sim_final),
+        ],
       );
+
       if (result.rowCount && result.rowCount > 0) insertedCount++;
     } catch (error) {
-      console.error('Error inserting hit:', error);
+      console.error("Error inserting hit:", error);
     }
   }
 
   const totalHitsResult = await queryOne<{ count: string }>(
     `SELECT COUNT(*)::text as count FROM public.watchlist_hits WHERE watchlist_id = $1`,
-    [watchlistId]
+    [watchlistId],
   );
-  const totalHits = parseInt(totalHitsResult?.count || '0', 10);
+  const totalHits = parseInt(totalHitsResult?.count || "0", 10);
 
   let visualMatchCount = 0;
   let newVisualHits = 0;
 
   if (watchlist.image_base64) {
     try {
-      const imageBuffer = Buffer.from(watchlist.image_base64, 'base64');
+      const imageBuffer = Buffer.from(watchlist.image_base64, "base64");
       const visionData = await detectImageEntities(imageBuffer);
 
       const candidates: Array<{
         url: string;
         pageUrl?: string;
-        source: 'fullMatch' | 'partialMatch' | 'visuallySimilar';
+        source: "fullMatch" | "partialMatch" | "visuallySimilar";
       }> = [];
 
       for (const img of visionData.fullMatchingImages) {
-        candidates.push({ url: img.url, pageUrl: img.pageUrl, source: 'fullMatch' });
+        candidates.push({
+          url: img.url,
+          pageUrl: img.pageUrl,
+          source: "fullMatch",
+        });
       }
       for (const img of visionData.partialMatchingImages) {
-        candidates.push({ url: img.url, pageUrl: img.pageUrl, source: 'partialMatch' });
+        candidates.push({
+          url: img.url,
+          pageUrl: img.pageUrl,
+          source: "partialMatch",
+        });
       }
       for (const img of visionData.visuallySimilarImages) {
-        candidates.push({ url: img.url, pageUrl: img.pageUrl, source: 'visuallySimilar' });
+        candidates.push({
+          url: img.url,
+          pageUrl: img.pageUrl,
+          source: "visuallySimilar",
+        });
       }
 
       if (candidates.length > 0) {
@@ -192,13 +225,24 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
 
         for (const candidate of candidates.slice(0, 20)) {
           try {
-            const candidateEmbedding = await generateImageEmbeddingFromUrl(candidate.url);
-            const similarity = cosineSimilarity(uploadedEmbedding, candidateEmbedding);
+            const candidateEmbedding = await generateImageEmbeddingFromUrl(
+              candidate.url,
+            );
+            const similarity = cosineSimilarity(
+              uploadedEmbedding,
+              candidateEmbedding,
+            );
 
-            if (similarity < 0.6) continue;
+            if (
+              visualMatchDisplayPercent(similarity) <
+              VISUAL_MATCH_DISPLAY_THRESHOLD
+            )
+              continue;
             visualMatchCount++;
 
-            const entityLabel = visionData.webEntities.find((e) => e.score > 0.5)?.description || null;
+            const entityLabel =
+              visionData.webEntities.find((e) => e.score > 0.5)?.description ||
+              null;
 
             const insertResult = await query(
               `
@@ -215,20 +259,21 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
                 entityLabel,
                 candidate.source,
                 similarity,
-              ]
+              ],
             );
 
-            if (insertResult.rowCount && insertResult.rowCount > 0) newVisualHits++;
+            if (insertResult.rowCount && insertResult.rowCount > 0)
+              newVisualHits++;
           } catch (err) {
             console.warn(
               `[Watchlist Check] Failed visual candidate: ${candidate.url.substring(0, 60)}...`,
-              err instanceof Error ? err.message : err
+              err instanceof Error ? err.message : err,
             );
           }
         }
       }
     } catch (err) {
-      console.error('[Watchlist Check] Visual similarity pipeline error:', err);
+      console.error("[Watchlist Check] Visual similarity pipeline error:", err);
     }
   }
 
@@ -238,7 +283,7 @@ export async function runWatchlistCheck(watchlistId: string): Promise<WatchlistC
       SET last_checked_at = NOW()
       WHERE id = $1
     `,
-    [watchlistId]
+    [watchlistId],
   );
 
   return {

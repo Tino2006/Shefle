@@ -1,10 +1,10 @@
 "use client";
 
+import type { Brand } from "@/lib/types/database";
+
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import type { Brand } from "@/lib/types/database";
 
 export default function AdminBrands() {
   const router = useRouter();
@@ -24,11 +24,14 @@ export default function AdminBrands() {
   const fetchBrands = async () => {
     try {
       const response = await fetch(`/api/admin/brands?status=${filter}`);
+
       if (!response.ok) {
         router.push("/login");
+
         return;
       }
       const data = await response.json();
+
       setBrands(data.brands);
     } catch (error) {
       toast.error("Failed to load brands");
@@ -58,6 +61,7 @@ export default function AdminBrands() {
   const handleReject = async (brandId: string) => {
     if (!rejectReason.trim()) {
       toast.error("Please provide a rejection reason");
+
       return;
     }
 
@@ -108,13 +112,14 @@ export default function AdminBrands() {
       approved: "bg-green-100 text-green-800",
       rejected: "bg-red-100 text-red-800",
     };
+
     return styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800";
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-800"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-800" />
       </div>
     );
   }
@@ -123,146 +128,152 @@ export default function AdminBrands() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Page Header */}
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Brand Registrations</h2>
-        <p className="text-gray-600">Review and manage brand registration applications</p>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          Brand Registrations
+        </h2>
+        <p className="text-gray-600">
+          Review and manage brand registration applications
+        </p>
       </div>
 
       {/* Filters */}
-        <div className="mb-6 flex gap-2">
-          {["pending", "approved", "rejected"].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                filter === status
-                  ? "bg-red-800 text-white"
-                  : "bg-white text-gray-600 border border-gray-200 hover:border-red-200"
-              }`}
-            >
-              {status.replace("_", " ")}
-            </button>
-          ))}
+      <div className="mb-6 flex gap-2">
+        {["pending", "approved", "rejected"].map((status) => (
+          <button
+            key={status}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+              filter === status
+                ? "bg-red-800 text-white"
+                : "bg-white text-gray-600 border border-gray-200 hover:border-red-200"
+            }`}
+            onClick={() => setFilter(status)}
+          >
+            {status.replace("_", " ")}
+          </button>
+        ))}
+      </div>
+
+      {/* Brands Grid */}
+      {brands.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <p className="text-gray-500">No {filter} brand registrations</p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {brands.map((brand) => (
+            <div
+              key={brand.id}
+              className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {brand.registration_type === "company"
+                        ? brand.company_name
+                        : brand.name}
+                    </h3>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(brand.status)}`}
+                    >
+                      {brand.status.replace("_", " ")}
+                    </span>
+                  </div>
 
-        {/* Brands Grid */}
-        {brands.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <p className="text-gray-500">No {filter} brand registrations</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {brands.map((brand) => (
-              <div
-                key={brand.id}
-                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {brand.registration_type === "company"
-                          ? brand.company_name
-                          : brand.name}
-                      </h3>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(brand.status)}`}
-                      >
-                        {brand.status.replace("_", " ")}
-                      </span>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Type</p>
+                      <p className="font-medium capitalize">
+                        {brand.registration_type}
+                      </p>
                     </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">Type</p>
-                        <p className="font-medium capitalize">{brand.registration_type}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Email</p>
-                        <p className="font-medium">{brand.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Phone</p>
-                        <p className="font-medium">{brand.phone}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Country</p>
-                        <p className="font-medium">{brand.country}</p>
-                      </div>
+                    <div>
+                      <p className="text-gray-500">Email</p>
+                      <p className="font-medium">{brand.email}</p>
                     </div>
-
-                    <div className="mt-4 flex gap-3">
-                      <a
-                        href={brand.poa_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        📄 POA Document
-                      </a>
-                      <a
-                        href={brand.logo_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        🏷️ Logo
-                      </a>
-                      {brand.business_license_url && (
-                        <a
-                          href={brand.business_license_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          📋 Business License
-                        </a>
-                      )}
-                      {brand.passport_file_url && (
-                        <a
-                          href={brand.passport_file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          🛂 Passport
-                        </a>
-                      )}
+                    <div>
+                      <p className="text-gray-500">Phone</p>
+                      <p className="font-medium">{brand.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Country</p>
+                      <p className="font-medium">{brand.country}</p>
                     </div>
                   </div>
 
-                  {brand.status === "pending" && (
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => openApproveModal(brand.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                  <div className="mt-4 flex gap-3">
+                    <a
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                      href={brand.poa_file_url}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      📄 POA Document
+                    </a>
+                    <a
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                      href={brand.logo_file_url}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      🏷️ Logo
+                    </a>
+                    {brand.business_license_url && (
+                      <a
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                        href={brand.business_license_url}
+                        rel="noopener noreferrer"
+                        target="_blank"
                       >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => openRejectModal(brand.id)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                        📋 Business License
+                      </a>
+                    )}
+                    {brand.passport_file_url && (
+                      <a
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                        href={brand.passport_file_url}
+                        rel="noopener noreferrer"
+                        target="_blank"
                       >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+                        🛂 Passport
+                      </a>
+                    )}
+                  </div>
                 </div>
 
-                {brand.status === "rejected" && brand.rejection_reason && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-800">
-                      <strong>Rejection Reason:</strong> {brand.rejection_reason}
-                    </p>
+                {brand.status === "pending" && (
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                      onClick={() => openApproveModal(brand.id)}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                      onClick={() => openRejectModal(brand.id)}
+                    >
+                      Reject
+                    </button>
                   </div>
                 )}
-
-                <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
-                  Submitted on {new Date(brand.created_at).toLocaleDateString()}
-                </div>
               </div>
-            ))}
-          </div>
-        )}
+
+              {brand.status === "rejected" && brand.rejection_reason && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    <strong>Rejection Reason:</strong> {brand.rejection_reason}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                Submitted on {new Date(brand.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Approve Modal */}
       {showApproveModal && (
@@ -270,27 +281,40 @@ export default function AdminBrands() {
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="w-6 h-6 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M5 13l4 4L19 7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900">Approve Brand Registration</h3>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Approve Brand Registration
+              </h3>
             </div>
-            
+
             <p className="text-gray-600 mb-6">
-              Are you sure you want to approve this brand registration? The applicant will be notified of the approval.
+              Are you sure you want to approve this brand registration? The
+              applicant will be notified of the approval.
             </p>
 
             <div className="flex gap-3">
               <button
-                onClick={closeApproveModal}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                onClick={closeApproveModal}
               >
                 Cancel
               </button>
               <button
-                onClick={() => brandToAction && handleApprove(brandToAction)}
                 className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                onClick={() => brandToAction && handleApprove(brandToAction)}
               >
                 Approve
               </button>
@@ -305,35 +329,48 @@ export default function AdminBrands() {
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6 text-red-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M6 18L18 6M6 6l12 12"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900">Reject Brand Registration</h3>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Reject Brand Registration
+              </h3>
             </div>
-            
+
             <p className="text-gray-600 mb-4">
-              Please provide a reason for rejecting this brand registration. The applicant will see this message.
+              Please provide a reason for rejecting this brand registration. The
+              applicant will see this message.
             </p>
 
             <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all resize-none mb-6"
               placeholder="Enter rejection reason..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 transition-all resize-none mb-6"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
             />
 
             <div className="flex gap-3">
               <button
-                onClick={closeRejectModal}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                onClick={closeRejectModal}
               >
                 Cancel
               </button>
               <button
-                onClick={() => brandToAction && handleReject(brandToAction)}
                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+                onClick={() => brandToAction && handleReject(brandToAction)}
               >
                 Reject
               </button>
@@ -341,6 +378,6 @@ export default function AdminBrands() {
           </div>
         </div>
       )}
-      </div>
+    </div>
   );
 }

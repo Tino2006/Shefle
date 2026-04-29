@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 // Admin client with service role key for server-side operations
 export function createAdminClient() {
@@ -8,8 +8,8 @@ export function createAdminClient() {
     {
       auth: {
         autoRefreshToken: false,
-        persistSession: false
-      }
-    }
+        persistSession: false,
+      },
+    },
   );
 }

@@ -1,7 +1,8 @@
-import { ensureProfileIfMissing } from '@/lib/ensure-profile';
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { ensureProfileIfMissing } from "@/lib/ensure-profile";
+import { createClient } from "@/lib/supabase/server";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -21,41 +22,39 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 401 });
     }
 
     const ensured = await ensureProfileIfMissing(data.user, supabase);
+
     if (!ensured.ok) {
       return NextResponse.json({ error: ensured.error }, { status: 503 });
     }
 
     // Fetch user's profile to get role
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
       .single();
 
     return NextResponse.json({
-      message: 'Login successful',
+      message: "Login successful",
       user: data.user,
       session: data.session,
-      role: profile?.role || 'user',
+      role: profile?.role || "user",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

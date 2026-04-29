@@ -1,33 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { queryOne, queryRows } from '@/lib/db/postgres';
-import { isMissingPortfolioApprovalColumn } from '@/lib/db/portfolioApprovalMigration';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
+import { queryOne, queryRows } from "@/lib/db/postgres";
+import { isMissingPortfolioApprovalColumn } from "@/lib/db/portfolioApprovalMigration";
 
 const createPortfolioTrademarkSchema = z.object({
-  registration_number: z.string().min(1, 'Registration number is required'),
-  country: z.string().min(1, 'Country is required'),
-  niche_classes: z.array(z.number().int().min(1).max(45)).min(1, 'At least one niche class is required'),
-  registration_date: z.string().min(1, 'Registration date is required'),
-  logo_url: z.string().min(1, 'Certificate upload is required'),
-  mark_name: z.string().min(1, 'Mark name is required'),
+  registration_number: z.string().min(1, "Registration number is required"),
+  country: z.string().min(1, "Country is required"),
+  niche_classes: z
+    .array(z.number().int().min(1).max(45))
+    .min(1, "At least one niche class is required"),
+  registration_date: z.string().min(1, "Registration date is required"),
+  logo_url: z.string().min(1, "Certificate upload is required"),
+  mark_name: z.string().min(1, "Mark name is required"),
 });
 
 const isMissingNicheClassesColumnError = (error: unknown) =>
-  error instanceof Error && /column\s+"?niche_classes"?\s+does not exist/i.test(error.message);
+  error instanceof Error &&
+  /column\s+"?niche_classes"?\s+does not exist/i.test(error.message);
 
 const isMissingApprovalColumnError = isMissingPortfolioApprovalColumn;
 
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     let trademarks;
+
     try {
       trademarks = await queryRows(
         `SELECT
@@ -49,7 +57,7 @@ export async function GET() {
         FROM public.portfolio_trademarks
         WHERE user_id = $1
         ORDER BY created_at DESC`,
-        [user.id]
+        [user.id],
       );
     } catch (error) {
       if (isMissingNicheClassesColumnError(error)) {
@@ -73,7 +81,7 @@ export async function GET() {
           FROM public.portfolio_trademarks
           WHERE user_id = $1
           ORDER BY created_at DESC`,
-          [user.id]
+          [user.id],
         );
       } else if (isMissingApprovalColumnError(error)) {
         trademarks = await queryRows(
@@ -96,7 +104,7 @@ export async function GET() {
           FROM public.portfolio_trademarks
           WHERE user_id = $1
           ORDER BY created_at DESC`,
-          [user.id]
+          [user.id],
         );
       } else {
         throw error;
@@ -105,10 +113,14 @@ export async function GET() {
 
     return NextResponse.json({ success: true, trademarks });
   } catch (error) {
-    console.error('List portfolio trademarks error:', error);
+    console.error("List portfolio trademarks error:", error);
+
     return NextResponse.json(
-      { error: 'Failed to fetch portfolio trademarks', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      {
+        error: "Failed to fetch portfolio trademarks",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }
@@ -116,10 +128,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -128,21 +143,30 @@ export async function POST(request: NextRequest) {
     if (!validated.success) {
       return NextResponse.json(
         {
-          error: 'Invalid request body',
-          details: validated.error.issues.map(issue => ({
-            field: issue.path.join('.'),
+          error: "Invalid request body",
+          details: validated.error.issues.map((issue) => ({
+            field: issue.path.join("."),
             message: issue.message,
           })),
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const nicheClasses = Array.from(new Set(validated.data.niche_classes)).sort((a, b) => a - b);
+    const nicheClasses = Array.from(new Set(validated.data.niche_classes)).sort(
+      (a, b) => a - b,
+    );
     const primaryClass = nicheClasses[0];
-    const { registration_number, country, registration_date, logo_url, mark_name } = validated.data;
+    const {
+      registration_number,
+      country,
+      registration_date,
+      logo_url,
+      mark_name,
+    } = validated.data;
 
     let result;
+
     try {
       result = await queryOne(
         `INSERT INTO public.portfolio_trademarks
@@ -164,7 +188,16 @@ export async function POST(request: NextRequest) {
           reviewed_by::text,
           created_at::text,
           updated_at::text`,
-        [user.id, registration_number, country, primaryClass, nicheClasses, registration_date, logo_url, mark_name]
+        [
+          user.id,
+          registration_number,
+          country,
+          primaryClass,
+          nicheClasses,
+          registration_date,
+          logo_url,
+          mark_name,
+        ],
       );
     } catch (error) {
       if (isMissingNicheClassesColumnError(error)) {
@@ -188,7 +221,15 @@ export async function POST(request: NextRequest) {
             NULL::text AS reviewed_by,
             created_at::text,
             updated_at::text`,
-          [user.id, registration_number, country, primaryClass, registration_date, logo_url, mark_name]
+          [
+            user.id,
+            registration_number,
+            country,
+            primaryClass,
+            registration_date,
+            logo_url,
+            mark_name,
+          ],
         );
       } else if (isMissingApprovalColumnError(error)) {
         result = await queryOne(
@@ -211,7 +252,16 @@ export async function POST(request: NextRequest) {
             NULL::text AS reviewed_by,
             created_at::text,
             updated_at::text`,
-          [user.id, registration_number, country, primaryClass, nicheClasses, registration_date, logo_url, mark_name]
+          [
+            user.id,
+            registration_number,
+            country,
+            primaryClass,
+            nicheClasses,
+            registration_date,
+            logo_url,
+            mark_name,
+          ],
         );
       } else {
         throw error;
@@ -219,20 +269,26 @@ export async function POST(request: NextRequest) {
     }
 
     if (!result) {
-      throw new Error('Failed to create portfolio trademark');
+      throw new Error("Failed to create portfolio trademark");
     }
 
-    return NextResponse.json({ success: true, trademark: result }, { status: 201 });
+    return NextResponse.json(
+      { success: true, trademark: result },
+      { status: 201 },
+    );
   } catch (error) {
-    console.error('Create portfolio trademark error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    const isDuplicate = message.includes('idx_portfolio_trademarks_user_reg');
+    console.error("Create portfolio trademark error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const isDuplicate = message.includes("idx_portfolio_trademarks_user_reg");
+
     return NextResponse.json(
       {
-        error: isDuplicate ? 'You already have a trademark with this registration number' : 'Failed to create portfolio trademark',
+        error: isDuplicate
+          ? "You already have a trademark with this registration number"
+          : "Failed to create portfolio trademark",
         message,
       },
-      { status: isDuplicate ? 409 : 500 }
+      { status: isDuplicate ? 409 : 500 },
     );
   }
 }

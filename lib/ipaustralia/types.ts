@@ -1,7 +1,12 @@
-export type IPAUSortField = 'NUMBER' | 'IR_NUMBER' | 'NAME' | 'WORD';
-export type IPAUSortDirection = 'ASCENDING' | 'DESCENDING';
-export type IPAUQuickSearchType = 'NUMBER' | 'IR_NUMBER' | 'NAME' | 'WORD';
-export type IPAUStatus = 'REGISTERED' | 'NEVER_REGISTERED' | 'PENDING' | 'REFUSED' | 'REMOVED';
+export type IPAUSortField = "NUMBER" | "IR_NUMBER" | "NAME" | "WORD";
+export type IPAUSortDirection = "ASCENDING" | "DESCENDING";
+export type IPAUQuickSearchType = "NUMBER" | "IR_NUMBER" | "NAME" | "WORD";
+export type IPAUStatus =
+  | "REGISTERED"
+  | "NEVER_REGISTERED"
+  | "PENDING"
+  | "REFUSED"
+  | "REMOVED";
 
 export interface IPAUQuickSearchRequest {
   query: string;

@@ -1,12 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { queryRows } from '@/lib/db/postgres';
-import { generateCandidateQueries, deduplicateResults, rankResults } from '@/lib/queryGeneration';
-import { searchIPAustralia } from '@/lib/ipaustralia/search';
+import { NextRequest, NextResponse } from "next/server";
+
+import { queryRows } from "@/lib/db/postgres";
+import {
+  generateCandidateQueries,
+  deduplicateResults,
+  rankResults,
+} from "@/lib/queryGeneration";
+import { searchIPAustralia } from "@/lib/ipaustralia/search";
+import { searchEUIPO } from "@/lib/euipo/search";
 
 /**
  * Multi-Stage Trademark Search API
  * POST /api/trademarks/multi-search
- * 
+ *
  * Body:
  * - normalizedText (required): Normalized OCR text
  * - classes (optional): Array of NICE class numbers to boost
@@ -44,7 +50,7 @@ interface TrademarkResult {
   sim_trgm: number;
   sim_final: number;
   similarity_score: number;
-  risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW';
+  risk_level: "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW";
   matched_candidate: string;
 }
 
@@ -59,10 +65,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { normalizedText, classes, limit = 25 } = body;
 
-    if (!normalizedText || typeof normalizedText !== 'string') {
+    if (!normalizedText || typeof normalizedText !== "string") {
       return NextResponse.json(
-        { error: 'Missing or invalid normalizedText parameter' },
-        { status: 400 }
+        { error: "Missing or invalid normalizedText parameter" },
+        { status: 400 },
       );
     }
 
@@ -79,15 +85,16 @@ export async function POST(request: NextRequest) {
 
     // Parse classes if provided
     let classNumbers: number[] | null = null;
+
     if (classes && Array.isArray(classes)) {
       classNumbers = classes
-        .map(c => parseInt(String(c), 10))
-        .filter(n => !isNaN(n) && n >= 1 && n <= 45);
+        .map((c) => parseInt(String(c), 10))
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 45);
     }
 
     // Run search for each candidate
     const allResults: TrademarkResult[] = [];
-    const statusValues = ['ACTIVE', 'PENDING', 'DEAD'];
+    const statusValues = ["ACTIVE", "PENDING", "DEAD"];
 
     for (const candidate of candidates) {
       // Build SQL query with hybrid retrieval/ranking
@@ -184,18 +191,34 @@ export async function POST(request: NextRequest) {
       const queryParams: any[] = [candidate, limit, statusValues];
 
       try {
-        const [usptoResult, ipAuResult] = await Promise.allSettled([
-          queryRows<TrademarkRow>(sqlQuery, queryParams),
-          searchIPAustralia(candidate, {
-            maxDetails: 5,
-            statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
-          }),
-        ]);
+        const [usptoResult, ipAuResult, euipoResult] = await Promise.allSettled(
+          [
+            queryRows<TrademarkRow>(sqlQuery, queryParams),
+            searchIPAustralia(candidate, {
+              maxDetails: 5,
+              statusFilters: statusValues as Array<
+                "ACTIVE" | "PENDING" | "DEAD"
+              >,
+            }),
+            searchEUIPO(candidate, {
+              maxResults: 5,
+              statusFilters: statusValues as Array<
+                "ACTIVE" | "PENDING" | "DEAD"
+              >,
+            }),
+          ],
+        );
 
-        if (usptoResult.status === 'fulfilled') {
-          usptoResult.value.forEach(row => {
-            const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
-            const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
+        if (usptoResult.status === "fulfilled") {
+          usptoResult.value.forEach((row) => {
+            const simTrgm =
+              typeof row.sim_trgm === "number"
+                ? row.sim_trgm
+                : parseFloat(String(row.sim_trgm || 0));
+            const simFinal =
+              typeof row.sim_final === "number"
+                ? row.sim_final
+                : parseFloat(String(row.sim_final || 0));
 
             allResults.push({
               serial_number: row.serial_number,
@@ -218,7 +241,7 @@ export async function POST(request: NextRequest) {
           throw usptoResult.reason;
         }
 
-        if (ipAuResult.status === 'fulfilled') {
+        if (ipAuResult.status === "fulfilled") {
           ipAuResult.value.forEach((row) => {
             allResults.push({
               serial_number: row.serial_number,
@@ -238,7 +261,36 @@ export async function POST(request: NextRequest) {
             });
           });
         } else {
-          console.error(`IP Australia search failed for candidate "${candidate}":`, ipAuResult.reason);
+          console.error(
+            `IP Australia search failed for candidate "${candidate}":`,
+            ipAuResult.reason,
+          );
+        }
+
+        if (euipoResult.status === "fulfilled") {
+          euipoResult.value.forEach((row) => {
+            allResults.push({
+              serial_number: row.serial_number,
+              office: row.office,
+              registration_number: row.registration_number,
+              mark_text: row.mark_text,
+              status_norm: row.status_norm,
+              owner_name: row.owner_name,
+              owner_country: row.owner_country,
+              filing_date: row.filing_date,
+              classes: row.classes || [],
+              sim_trgm: row.sim_trgm,
+              sim_final: row.sim_final,
+              similarity_score: row.similarity_score,
+              risk_level: row.risk_level,
+              matched_candidate: candidate,
+            });
+          });
+        } else {
+          console.error(
+            `EUIPO search failed for candidate "${candidate}":`,
+            euipoResult.reason,
+          );
         }
       } catch (err) {
         console.error(`Error searching for candidate "${candidate}":`, err);
@@ -249,52 +301,62 @@ export async function POST(request: NextRequest) {
     const dedupedResults = deduplicateResults(allResults);
 
     // Rank results with custom logic
-    const rankedResults = rankResults(dedupedResults, classNumbers || undefined);
+    const rankedResults = rankResults(
+      dedupedResults,
+      classNumbers || undefined,
+    );
 
     return NextResponse.json({
       candidates,
       count: rankedResults.length,
       results: rankedResults,
     });
-
   } catch (error) {
-    console.error('Multi-search error:', error);
+    console.error("Multi-search error:", error);
 
     if (error instanceof Error) {
-      if (error.message.includes('DATABASE_URL')) {
+      if (error.message.includes("DATABASE_URL")) {
         return NextResponse.json(
           {
-            error: 'Database configuration error',
-            message: 'DATABASE_URL is not configured. Please check your environment variables.',
+            error: "Database configuration error",
+            message:
+              "DATABASE_URL is not configured. Please check your environment variables.",
           },
-          { status: 500 }
+          { status: 500 },
         );
       }
 
-      if (error.message.includes('connect') || error.message.includes('ECONNREFUSED')) {
+      if (
+        error.message.includes("connect") ||
+        error.message.includes("ECONNREFUSED")
+      ) {
         return NextResponse.json(
           {
-            error: 'Database connection error',
-            message: 'Unable to connect to the database. Please check your database configuration.',
+            error: "Database connection error",
+            message:
+              "Unable to connect to the database. Please check your database configuration.",
           },
-          { status: 503 }
+          { status: 503 },
         );
       }
     }
 
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        message: 'An unexpected error occurred while searching trademarks.',
+        error: "Internal server error",
+        message: "An unexpected error occurred while searching trademarks.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-function calculateRiskLevel(simFinal: number): 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' {
-  if (simFinal >= 0.8) return 'HIGH';
-  if (simFinal >= 0.6) return 'MEDIUM';
-  if (simFinal >= 0.4) return 'LOW';
-  return 'VERY_LOW';
+function calculateRiskLevel(
+  simFinal: number,
+): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" {
+  if (simFinal >= 0.8) return "HIGH";
+  if (simFinal >= 0.6) return "MEDIUM";
+  if (simFinal >= 0.4) return "LOW";
+
+  return "VERY_LOW";
 }

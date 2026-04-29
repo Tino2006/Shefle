@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { queryOne } from '@/lib/db/postgres';
+import { NextRequest, NextResponse } from "next/server";
+
+import { queryOne } from "@/lib/db/postgres";
 
 /**
  * Get Single Watchlist Hit API
@@ -19,7 +20,7 @@ interface WatchlistHitDetail {
   reviewed_at: string | null;
   note: string | null;
   first_seen_at: string;
-  
+
   // Trademark info
   trademark_serial_number: string;
   trademark_registration_number: string | null;
@@ -31,14 +32,14 @@ interface WatchlistHitDetail {
   trademark_owner_name: string | null;
   trademark_goods_services_text: string | null;
   trademark_office: string;
-  
+
   // Classes
   trademark_classes: number[] | null;
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -82,29 +83,26 @@ export async function GET(
         GROUP BY 
           wh.id, w.id, t.id
       `,
-      [hitId]
+      [hitId],
     );
 
     if (!hit) {
-      return NextResponse.json(
-        { error: 'Alert not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Alert not found" }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
       hit,
     });
-
   } catch (error) {
-    console.error('Get watchlist hit error:', error);
+    console.error("Get watchlist hit error:", error);
+
     return NextResponse.json(
       {
-        error: 'Failed to fetch alert details',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to fetch alert details",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

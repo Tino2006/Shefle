@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { queryRows } from '@/lib/db/postgres';
+import { NextRequest, NextResponse } from "next/server";
+
+import { createClient } from "@/lib/supabase/server";
+import { queryRows } from "@/lib/db/postgres";
 
 /**
  * Visual Hits API
@@ -23,19 +24,22 @@ interface VisualHit {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const watchlistId = request.nextUrl.searchParams.get('watchlist_id');
+    const watchlistId = request.nextUrl.searchParams.get("watchlist_id");
 
     const params: any[] = [user.id];
-    let whereClause = '';
+    let whereClause = "";
 
     if (watchlistId) {
-      whereClause = 'AND vh.watchlist_id = $2';
+      whereClause = "AND vh.watchlist_id = $2";
       params.push(watchlistId);
     }
 
@@ -58,18 +62,19 @@ export async function GET(request: NextRequest) {
         ORDER BY vh.similarity_score DESC
         LIMIT 50
       `,
-      params
+      params,
     );
 
     return NextResponse.json({ success: true, hits });
   } catch (error) {
-    console.error('Visual hits fetch error:', error);
+    console.error("Visual hits fetch error:", error);
+
     return NextResponse.json(
       {
-        error: 'Failed to fetch visual hits',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to fetch visual hits",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

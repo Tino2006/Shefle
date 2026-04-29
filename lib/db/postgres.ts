@@ -1,14 +1,15 @@
 // Load environment variables for standalone script execution
 // This is safe to include - Next.js will ignore it in API routes
-import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve } from "path";
+
+import { config } from "dotenv";
 
 // Load from .env.local (Next.js convention) if running as standalone script
-if (typeof window === 'undefined' && !process.env.NEXT_RUNTIME) {
-  config({ path: resolve(process.cwd(), '.env.local') });
+if (typeof window === "undefined" && !process.env.NEXT_RUNTIME) {
+  config({ path: resolve(process.cwd(), ".env.local") });
 }
 
-import { Pool, QueryResult, QueryResultRow } from 'pg';
+import { Pool, QueryResult, QueryResultRow } from "pg";
 
 /**
  * PostgreSQL connection pool for direct database access
@@ -23,13 +24,14 @@ function isTransientConnectionError(error: unknown): boolean {
   }
 
   const message = error.message.toLowerCase();
+
   return (
-    message.includes('connection terminated due to connection timeout') ||
-    message.includes('connection terminated unexpectedly') ||
-    message.includes('ecconnreset') ||
-    message.includes('econnreset') ||
-    message.includes('econnrefused') ||
-    message.includes('etimedout')
+    message.includes("connection terminated due to connection timeout") ||
+    message.includes("connection terminated unexpectedly") ||
+    message.includes("ecconnreset") ||
+    message.includes("econnreset") ||
+    message.includes("econnrefused") ||
+    message.includes("etimedout")
   );
 }
 
@@ -40,11 +42,11 @@ function isTransientConnectionError(error: unknown): boolean {
 export function getPool(): Pool {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
-    
+
     if (!databaseUrl) {
       throw new Error(
-        'DATABASE_URL environment variable is not set. ' +
-        'Please add it to your .env.local file.'
+        "DATABASE_URL environment variable is not set. " +
+          "Please add it to your .env.local file.",
       );
     }
 
@@ -56,8 +58,8 @@ export function getPool(): Pool {
     });
 
     // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle PostgreSQL client', err);
+    pool.on("error", (err) => {
+      console.error("Unexpected error on idle PostgreSQL client", err);
     });
   }
 
@@ -67,30 +69,31 @@ export function getPool(): Pool {
 /**
  * Execute a SQL query with parameters
  * Provides automatic connection management and error handling
- * 
+ *
  * @param text - SQL query string
  * @param params - Query parameters (uses $1, $2, etc. placeholders)
  * @returns Query result
  */
 export async function query<T extends QueryResultRow = any>(
   text: string,
-  params?: any[]
+  params?: any[],
 ): Promise<QueryResult<T>> {
   const pool = getPool();
   const executeQuery = async (): Promise<QueryResult<T>> => {
     const start = Date.now();
-  
+
     const result = await pool.query<T>(text, params);
     const duration = Date.now() - start;
-    
+
     // Log slow queries (> 1000ms) in development
-    if (process.env.NODE_ENV === 'development' && duration > 1000) {
-      console.warn('Slow query detected:', {
+    if (process.env.NODE_ENV === "development" && duration > 1000) {
+      console.warn("Slow query detected:", {
         duration: `${duration}ms`,
         query: text.substring(0, 100),
         rowCount: result.rowCount,
       });
     }
+
     return result;
   };
 
@@ -99,16 +102,17 @@ export async function query<T extends QueryResultRow = any>(
   } catch (error) {
     // Retry once for transient network/pooler failures
     if (isTransientConnectionError(error)) {
-      console.warn('Transient database error, retrying once:', {
+      console.warn("Transient database error, retrying once:", {
         query: text.substring(0, 100),
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       });
+
       return await executeQuery();
     }
 
-    console.error('Database query error:', {
+    console.error("Database query error:", {
       query: text.substring(0, 100),
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : "Unknown error",
     });
     throw error;
   }
@@ -120,9 +124,10 @@ export async function query<T extends QueryResultRow = any>(
  */
 export async function queryRows<T extends QueryResultRow = any>(
   text: string,
-  params?: any[]
+  params?: any[],
 ): Promise<T[]> {
   const result = await query<T>(text, params);
+
   return result.rows;
 }
 
@@ -132,9 +137,10 @@ export async function queryRows<T extends QueryResultRow = any>(
  */
 export async function queryOne<T extends QueryResultRow = any>(
   text: string,
-  params?: any[]
+  params?: any[],
 ): Promise<T | null> {
   const result = await query<T>(text, params);
+
   return result.rows[0] || null;
 }
 
@@ -155,10 +161,12 @@ export async function closePool(): Promise<void> {
  */
 export async function testConnection(): Promise<boolean> {
   try {
-    const result = await query('SELECT NOW() as current_time');
+    const result = await query("SELECT NOW() as current_time");
+
     return result.rows.length > 0;
   } catch (error) {
-    console.error('Database connection test failed:', error);
+    console.error("Database connection test failed:", error);
+
     return false;
   }
 }
@@ -171,14 +179,15 @@ export async function checkExtensions(): Promise<{
 }> {
   try {
     const result = await query<{ extname: string }>(
-      "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'"
+      "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'",
     );
-    
+
     return {
       pg_trgm: result.rows.length > 0,
     };
   } catch (error) {
-    console.error('Failed to check extensions:', error);
+    console.error("Failed to check extensions:", error);
+
     return {
       pg_trgm: false,
     };

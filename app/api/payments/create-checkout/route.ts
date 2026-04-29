@@ -1,17 +1,19 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
 
 function getStripeClient(): Stripe {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
   if (!stripeSecretKey) {
-    throw new Error('STRIPE_SECRET_KEY is not configured');
+    throw new Error("STRIPE_SECRET_KEY is not configured");
   }
 
   return new Stripe(stripeSecretKey, {
-    apiVersion: '2026-02-25.clover' as unknown as Stripe.StripeConfig['apiVersion'],
+    apiVersion:
+      "2026-02-25.clover" as unknown as Stripe.StripeConfig["apiVersion"],
   });
 }
 
@@ -27,43 +29,40 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Get plan details
     const { data: plan, error: planError } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('id', planId)
+      .from("subscription_plans")
+      .select("*")
+      .eq("id", planId)
       .single();
 
     if (planError || !plan) {
-      return NextResponse.json(
-        { error: 'Plan not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Plan not found" }, { status: 404 });
     }
 
     // Get or create Stripe customer
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
       .single();
 
     let customerId: string;
 
     // Check if user has existing subscription
     const { data: existingSubscription } = await supabase
-      .from('subscriptions')
-      .select('stripe_customer_id')
-      .eq('user_id', user.id)
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
       .single();
 
     if (existingSubscription?.stripe_customer_id) {
@@ -72,35 +71,36 @@ export async function POST(request: Request) {
       // Create new Stripe customer
       const customer = await stripe.customers.create({
         email: user.email!,
-        name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim(),
         metadata: {
           userId: user.id,
         },
       });
+
       customerId = customer.id;
     }
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ['card'],
+      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
             currency: plan.currency.toLowerCase(),
             product_data: {
               name: plan.name,
-              description: `${plan.searches_limit || 'Unlimited'} searches, ${plan.monitors_limit} monitors, ${plan.notifications_limit || 'Unlimited'} notifications`,
+              description: `${plan.searches_limit || "Unlimited"} searches, ${plan.monitors_limit} monitors, ${plan.notifications_limit || "Unlimited"} notifications`,
             },
             unit_amount: Math.round(plan.price * 100), // Convert to cents
             recurring: {
-              interval: 'month',
+              interval: "month",
             },
           },
           quantity: 1,
         },
       ],
-      mode: 'subscription',
+      mode: "subscription",
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions?cancelled=true`,
       metadata: {
@@ -114,25 +114,25 @@ export async function POST(request: Request) {
       url: session.url,
     });
   } catch (error) {
-    console.error('Stripe checkout error:', error);
-    
+    console.error("Stripe checkout error:", error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
-    if (error instanceof Error && error.message.includes('STRIPE_SECRET_KEY')) {
+    if (error instanceof Error && error.message.includes("STRIPE_SECRET_KEY")) {
       return NextResponse.json(
-        { error: 'Stripe configuration error' },
-        { status: 500 }
+        { error: "Stripe configuration error" },
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
+
 import { AdminNavbar } from "@/components/admin-navbar";
 import { requireAdmin } from "@/lib/auth";
-import { redirect } from "next/navigation";
 
 export default async function AdminLayout({
   children,
@@ -12,7 +13,7 @@ export default async function AdminLayout({
     await requireAdmin();
   } catch (error) {
     // If requireAdmin throws, user is not authorized
-    redirect('/?error=unauthorized');
+    redirect("/?error=unauthorized");
   }
 
   return (

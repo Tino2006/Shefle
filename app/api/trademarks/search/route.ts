@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { queryRows } from '@/lib/db/postgres';
-import { searchIPAustralia } from '@/lib/ipaustralia/search';
+import { NextRequest, NextResponse } from "next/server";
+
+import { queryRows } from "@/lib/db/postgres";
+import { searchIPAustralia } from "@/lib/ipaustralia/search";
+import { searchEUIPO } from "@/lib/euipo/search";
 
 /**
  * USPTO Trademark Search API
  * GET /api/trademarks/search
- * 
+ *
  * Query Parameters:
  * - query (required): Search term (min 2 characters)
  * - limit (optional): Number of results (default 25, max 100)
@@ -45,7 +47,7 @@ interface TrademarkResult {
   sim_trgm: number;
   sim_final: number;
   similarity_score: number; // Legacy field (uses sim_final)
-  risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW';
+  risk_level: "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW";
 }
 
 interface SearchResponse {
@@ -59,10 +61,14 @@ export async function GET(request: NextRequest) {
   try {
     // 🔧 FIX 2: Defensive query param parsing - never assume params exist
     const searchParams = request.nextUrl.searchParams;
-    
+
     const query = searchParams.get("query")?.trim();
+
     if (!query) {
-      return NextResponse.json({ error: "Missing query parameter" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing query parameter" },
+        { status: 400 },
+      );
     }
 
     const limit = parseInt(searchParams.get("limit") || "25", 10);
@@ -72,39 +78,47 @@ export async function GET(request: NextRequest) {
     // Validate limit
     if (isNaN(limit) || limit < 1 || limit > 100) {
       return NextResponse.json(
-        { error: "Invalid limit parameter", message: "Limit must be between 1 and 100" },
-        { status: 400 }
+        {
+          error: "Invalid limit parameter",
+          message: "Limit must be between 1 and 100",
+        },
+        { status: 400 },
       );
     }
 
     // Default status filter: ACTIVE,PENDING unless explicitly requested
-    const statusValues = status.split(',').map(s => s.trim().toUpperCase()).filter(s => ['ACTIVE', 'PENDING', 'DEAD'].includes(s));
-    
+    const statusValues = status
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => ["ACTIVE", "PENDING", "DEAD"].includes(s));
+
     if (statusValues.length === 0) {
       return NextResponse.json(
         {
-          error: 'Invalid status parameter',
-          message: 'Status must be one or more of: ACTIVE, PENDING, DEAD (comma-separated)',
+          error: "Invalid status parameter",
+          message:
+            "Status must be one or more of: ACTIVE, PENDING, DEAD (comma-separated)",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Parse classes if provided and non-empty
     let classNumbers: number[] | null = null;
+
     if (classes && classes.trim()) {
       classNumbers = classes
-        .split(',')
-        .map(c => parseInt(c.trim(), 10))
-        .filter(n => !isNaN(n) && n >= 1 && n <= 45);
-      
+        .split(",")
+        .map((c) => parseInt(c.trim(), 10))
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 45);
+
       if (classNumbers.length === 0) {
         return NextResponse.json(
           {
-            error: 'Invalid classes parameter',
-            message: 'Classes must be comma-separated numbers between 1 and 45',
+            error: "Invalid classes parameter",
+            message: "Classes must be comma-separated numbers between 1 and 45",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -162,7 +176,7 @@ export async function GET(request: NextRequest) {
               ) > 0.2
           )
           AND t.status_norm = ANY($3)
-          ${classNumbers ? `AND tc.nice_class = ANY($4)` : ''}
+          ${classNumbers ? `AND tc.nice_class = ANY($4)` : ""}
         GROUP BY t.id
       )
       -- Stage 2: Re-rank with weighted multi-signal scoring
@@ -215,65 +229,99 @@ export async function GET(request: NextRequest) {
 
     // Build parameters array
     const queryParams: any[] = [query, limit, statusValues];
+
     if (classNumbers) {
       queryParams.push(classNumbers);
     }
 
     // Function to calculate risk level based on final similarity score
-    const calculateRiskLevel = (simFinal: number): 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' => {
-      if (simFinal >= 0.8) return 'HIGH';
-      if (simFinal >= 0.6) return 'MEDIUM';
-      if (simFinal >= 0.4) return 'LOW';
-      return 'VERY_LOW';
+    const calculateRiskLevel = (
+      simFinal: number,
+    ): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" => {
+      if (simFinal >= 0.8) return "HIGH";
+      if (simFinal >= 0.6) return "MEDIUM";
+      if (simFinal >= 0.4) return "LOW";
+
+      return "VERY_LOW";
     };
 
-    const usptoPromise = queryRows<TrademarkRow>(sqlQuery, queryParams).then((rows) =>
-      rows.map((row): TrademarkResult => {
-        const simTrgm = typeof row.sim_trgm === 'number' ? row.sim_trgm : parseFloat(String(row.sim_trgm || 0));
-        const simFinal = typeof row.sim_final === 'number' ? row.sim_final : parseFloat(String(row.sim_final || 0));
+    const usptoPromise = queryRows<TrademarkRow>(sqlQuery, queryParams).then(
+      (rows) =>
+        rows.map((row): TrademarkResult => {
+          const simTrgm =
+            typeof row.sim_trgm === "number"
+              ? row.sim_trgm
+              : parseFloat(String(row.sim_trgm || 0));
+          const simFinal =
+            typeof row.sim_final === "number"
+              ? row.sim_final
+              : parseFloat(String(row.sim_final || 0));
 
-        return {
-          office: row.office,
-          serial_number: row.serial_number,
-          registration_number: row.registration_number,
-          mark_text: row.mark_text,
-          status_norm: row.status_norm,
-          owner_name: row.owner_name,
-          owner_country: row.owner_country,
-          filing_date: row.filing_date,
-          classes: row.classes || [],
-          sim_trgm: parseFloat(simTrgm.toFixed(3)),
-          sim_final: parseFloat(simFinal.toFixed(3)),
-          similarity_score: parseFloat(simFinal.toFixed(3)),
-          risk_level: calculateRiskLevel(simFinal),
-        };
-      })
+          return {
+            office: row.office,
+            serial_number: row.serial_number,
+            registration_number: row.registration_number,
+            mark_text: row.mark_text,
+            status_norm: row.status_norm,
+            owner_name: row.owner_name,
+            owner_country: row.owner_country,
+            filing_date: row.filing_date,
+            classes: row.classes || [],
+            sim_trgm: parseFloat(simTrgm.toFixed(3)),
+            sim_final: parseFloat(simFinal.toFixed(3)),
+            similarity_score: parseFloat(simFinal.toFixed(3)),
+            risk_level: calculateRiskLevel(simFinal),
+          };
+        }),
     );
 
     const ipAuPromise = searchIPAustralia(query, {
       maxDetails: 10,
-      statusFilters: statusValues as Array<'ACTIVE' | 'PENDING' | 'DEAD'>,
+      statusFilters: statusValues as Array<"ACTIVE" | "PENDING" | "DEAD">,
     });
 
-    const [usptoResult, ipAuResult] = await Promise.allSettled([usptoPromise, ipAuPromise]);
+    const euipoPromise = searchEUIPO(query, {
+      maxResults: 10,
+      statusFilters: statusValues as Array<"ACTIVE" | "PENDING" | "DEAD">,
+    });
+
+    const [usptoResult, ipAuResult, euipoResult] = await Promise.allSettled([
+      usptoPromise,
+      ipAuPromise,
+      euipoPromise,
+    ]);
     const warnings: string[] = [];
 
-    const usptoResults = usptoResult.status === 'fulfilled' ? usptoResult.value : [];
-    if (usptoResult.status === 'rejected') {
+    const usptoResults =
+      usptoResult.status === "fulfilled" ? usptoResult.value : [];
+
+    if (usptoResult.status === "rejected") {
       throw usptoResult.reason;
     }
 
-    const ipAuResults = ipAuResult.status === 'fulfilled' ? ipAuResult.value : [];
-    if (ipAuResult.status === 'rejected') {
-      console.error('IP Australia search error:', ipAuResult.reason);
-      warnings.push('IP Australia search is temporarily unavailable. Showing USPTO results only.');
+    const ipAuResults =
+      ipAuResult.status === "fulfilled" ? ipAuResult.value : [];
+
+    if (ipAuResult.status === "rejected") {
+      console.error("IP Australia search error:", ipAuResult.reason);
+      warnings.push("IP Australia search is temporarily unavailable.");
     }
 
-    const merged = [...usptoResults, ...ipAuResults];
+    const euipoResults =
+      euipoResult.status === "fulfilled" ? euipoResult.value : [];
+
+    if (euipoResult.status === "rejected") {
+      console.error("EUIPO search error:", euipoResult.reason);
+      warnings.push("EUIPO search is temporarily unavailable.");
+    }
+
+    const merged = [...usptoResults, ...ipAuResults, ...euipoResults];
     const dedupedMap = new Map<string, TrademarkResult>();
+
     for (const result of merged) {
       const key = `${result.office}-${result.serial_number}`;
       const existing = dedupedMap.get(key);
+
       if (!existing || result.similarity_score > existing.similarity_score) {
         dedupedMap.set(key, result);
       }
@@ -294,42 +342,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
       },
     });
-
   } catch (error) {
-    console.error('Trademark search error:', error);
+    console.error("Trademark search error:", error);
 
     // Check for database connection errors
     if (error instanceof Error) {
-      if (error.message.includes('DATABASE_URL')) {
+      if (error.message.includes("DATABASE_URL")) {
         return NextResponse.json(
           {
-            error: 'Database configuration error',
-            message: 'DATABASE_URL is not configured. Please check your environment variables.',
+            error: "Database configuration error",
+            message:
+              "DATABASE_URL is not configured. Please check your environment variables.",
           },
-          { status: 500 }
+          { status: 500 },
         );
       }
 
-      if (error.message.includes('connect') || error.message.includes('ECONNREFUSED')) {
+      if (
+        error.message.includes("connect") ||
+        error.message.includes("ECONNREFUSED")
+      ) {
         return NextResponse.json(
           {
-            error: 'Database connection error',
-            message: 'Unable to connect to the database. Please check your database configuration.',
+            error: "Database connection error",
+            message:
+              "Unable to connect to the database. Please check your database configuration.",
           },
-          { status: 503 }
+          { status: 503 },
         );
       }
     }
 
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        message: 'An unexpected error occurred while searching trademarks.',
+        error: "Internal server error",
+        message: "An unexpected error occurred while searching trademarks.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -341,9 +393,9 @@ export async function OPTIONS() {
     {
       status: 200,
       headers: {
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
       },
-    }
+    },
   );
 }

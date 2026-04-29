@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { queryOne, queryRows } from '@/lib/db/postgres';
-import { runWatchlistCheck } from '@/lib/watchlists/runWatchlistCheck';
-import { sendMonitorAlertEmail } from '@/lib/notifications/sendMonitorAlertEmail';
+import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = 'nodejs';
+import { queryOne, queryRows } from "@/lib/db/postgres";
+import { runWatchlistCheck } from "@/lib/watchlists/runWatchlistCheck";
+import { sendMonitorAlertEmail } from "@/lib/notifications/sendMonitorAlertEmail";
+
+export const runtime = "nodejs";
 export const maxDuration = 300;
 
 interface WatchlistRow {
@@ -20,13 +21,15 @@ interface UserEmailRow {
 
 function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
+
   if (!cronSecret) return false;
-  return request.headers.get('authorization') === `Bearer ${cronSecret}`;
+
+  return request.headers.get("authorization") === `Bearer ${cronSecret}`;
 }
 
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -35,21 +38,29 @@ export async function GET(request: NextRequest) {
         SELECT id::text, user_id::text, query
         FROM public.watchlists
         ORDER BY created_at ASC
-      `
+      `,
     );
 
     const byUser = new Map<
       string,
-      Array<{ watchlistQuery: string; newTextHits: number; newVisualHits: number; checkedAt: string }>
+      Array<{
+        watchlistQuery: string;
+        newTextHits: number;
+        newVisualHits: number;
+        checkedAt: string;
+      }>
     >();
 
     let checked = 0;
+
     for (const watchlist of watchlists) {
       const result = await runWatchlistCheck(watchlist.id);
+
       checked++;
 
       if (result.new_hits > 0 || result.new_visual_hits > 0) {
         const existing = byUser.get(watchlist.user_id) || [];
+
         existing.push({
           watchlistQuery: watchlist.query,
           newTextHits: result.new_hits,
@@ -75,11 +86,12 @@ export async function GET(request: NextRequest) {
           WHERE u.id = $1::uuid
           LIMIT 1
         `,
-        [userId]
+        [userId],
       );
 
       const recipient = user?.email || fallbackEmail || null;
       const emailEnabled = user?.email_enabled ?? true;
+
       if (!recipient || !emailEnabled) continue;
 
       await sendMonitorAlertEmail({
@@ -92,17 +104,20 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      source: 'vercel-cron',
+      source: "vercel-cron",
       checked_watchlists: checked,
       users_with_new_matches: byUser.size,
       emails_sent: emailsSent,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unexpected cron error';
-    console.error('[Watchlists Cron] Failed:', error);
+    const message =
+      error instanceof Error ? error.message : "Unexpected cron error";
+
+    console.error("[Watchlists Cron] Failed:", error);
+
     return NextResponse.json(
-      { ok: false, error: 'Daily watchlist cron failed', message },
-      { status: 500 }
+      { ok: false, error: "Daily watchlist cron failed", message },
+      { status: 500 },
     );
   }
 }

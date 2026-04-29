@@ -1,14 +1,16 @@
-import { createAdminClient } from '@/lib/supabase/admin';
-import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyAdminApi, isErrorResponse } from "@/lib/api-middleware";
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Verify admin access
     const authResult = await verifyAdminApi();
+
     if (isErrorResponse(authResult)) {
       return authResult;
     }
@@ -18,23 +20,21 @@ export async function DELETE(
     // Use admin client to delete (bypasses RLS)
     const adminClient = createAdminClient();
     const { error } = await adminClient
-      .from('contact_submissions')
+      .from("contact_submissions")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ message: 'Contact deleted' });
+    return NextResponse.json({ message: "Contact deleted" });
   } catch (error) {
-    console.error('Delete contact error:', error);
+    console.error("Delete contact error:", error);
+
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

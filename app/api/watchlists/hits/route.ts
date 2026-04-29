@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { queryRows } from '@/lib/db/postgres';
+import { NextRequest, NextResponse } from "next/server";
+
+import { createClient } from "@/lib/supabase/server";
+import { queryRows } from "@/lib/db/postgres";
 
 /**
  * Watchlist Hits API
@@ -33,28 +34,37 @@ interface WatchlistHitWithDetails {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const watchlistId = searchParams.get('watchlist_id');
-    const reviewStatus = searchParams.get('review_status');
+    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const watchlistId = searchParams.get("watchlist_id");
+    const reviewStatus = searchParams.get("review_status");
 
     // Validate review_status if provided
-    if (reviewStatus && !['NEW', 'REVIEWED', 'DISMISSED', 'ESCALATED'].includes(reviewStatus)) {
+    if (
+      reviewStatus &&
+      !["NEW", "REVIEWED", "DISMISSED", "ESCALATED"].includes(reviewStatus)
+    ) {
       return NextResponse.json(
-        { error: 'Invalid review_status. Must be: NEW, REVIEWED, DISMISSED, or ESCALATED' },
-        { status: 400 }
+        {
+          error:
+            "Invalid review_status. Must be: NEW, REVIEWED, DISMISSED, or ESCALATED",
+        },
+        { status: 400 },
       );
     }
 
     // Build WHERE clauses
-    const whereClauses = ['w.user_id = $1'];
+    const whereClauses = ["w.user_id = $1"];
     const queryParams: any[] = [user.id];
     let paramIndex = 2;
 
@@ -95,11 +105,11 @@ export async function GET(request: NextRequest) {
         FROM public.watchlist_hits wh
         INNER JOIN public.watchlists w ON wh.watchlist_id = w.id
         INNER JOIN public.trademarks t ON wh.trademark_id = t.id
-        WHERE ${whereClauses.join(' AND ')}
+        WHERE ${whereClauses.join(" AND ")}
         ORDER BY wh.first_seen_at DESC
         LIMIT $${paramIndex}
       `,
-      queryParams
+      queryParams,
     );
 
     return NextResponse.json({
@@ -111,15 +121,15 @@ export async function GET(request: NextRequest) {
         review_status: reviewStatus,
       },
     });
-
   } catch (error) {
-    console.error('Get watchlist hits error:', error);
+    console.error("Get watchlist hits error:", error);
+
     return NextResponse.json(
       {
-        error: 'Failed to fetch watchlist hits',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to fetch watchlist hits",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

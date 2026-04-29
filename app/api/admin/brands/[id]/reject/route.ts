@@ -1,7 +1,8 @@
-import { createClient } from '@/lib/supabase/server';
-import { verifyAdminApi, isErrorResponse } from '@/lib/api-middleware';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
+import { verifyAdminApi, isErrorResponse } from "@/lib/api-middleware";
 
 const rejectSchema = z.object({
   reason: z.string().min(1),
@@ -9,11 +10,12 @@ const rejectSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Verify admin access
     const authResult = await verifyAdminApi();
+
     if (isErrorResponse(authResult)) {
       return authResult;
     }
@@ -26,35 +28,33 @@ export async function POST(
     const supabase = await createClient();
 
     const { error } = await supabase
-      .from('brands')
+      .from("brands")
       .update({
-        status: 'rejected',
+        status: "rejected",
         rejection_reason: reason,
         reviewed_at: new Date().toISOString(),
         reviewed_by: user.id,
       })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ message: 'Brand rejected' });
+    return NextResponse.json({ message: "Brand rejected" });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
-        { status: 400 }
+        { error: "Invalid input", details: error.issues },
+        { status: 400 },
       );
     }
 
-    console.error('Reject brand error:', error);
+    console.error("Reject brand error:", error);
+
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

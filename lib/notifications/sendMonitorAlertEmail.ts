@@ -11,13 +11,17 @@ interface SendMonitorAlertEmailInput {
   items: MonitorAlertItem[];
 }
 
-function buildEmailContent(firstName: string | null | undefined, items: MonitorAlertItem[]) {
-  const greetingName = firstName?.trim() || 'there';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+function buildEmailContent(
+  firstName: string | null | undefined,
+  items: MonitorAlertItem[],
+) {
+  const greetingName = firstName?.trim() || "there";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   const rows = items
     .map((item) => {
       const checkedAt = new Date(item.checkedAt).toLocaleString();
+
       return `
         <tr>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;">${item.watchlistQuery}</td>
@@ -27,7 +31,7 @@ function buildEmailContent(firstName: string | null | undefined, items: MonitorA
         </tr>
       `;
     })
-    .join('');
+    .join("");
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;color:#111;">
@@ -62,19 +66,23 @@ function buildEmailContent(firstName: string | null | undefined, items: MonitorA
 
 export async function sendMonitorAlertEmail(input: SendMonitorAlertEmailInput) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || 'Shefle <alerts@shefle.com>';
+  const from = process.env.RESEND_FROM_EMAIL || "Shefle <alerts@shefle.com>";
+
   if (!apiKey) {
-    console.warn('[Monitor Alerts] RESEND_API_KEY is not set. Skipping email send.');
-    return { sent: false, reason: 'missing_resend_api_key' as const };
+    console.warn(
+      "[Monitor Alerts] RESEND_API_KEY is not set. Skipping email send.",
+    );
+
+    return { sent: false, reason: "missing_resend_api_key" as const };
   }
 
   const { subject, html } = buildEmailContent(input.firstName, input.items);
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       from,
@@ -86,6 +94,7 @@ export async function sendMonitorAlertEmail(input: SendMonitorAlertEmailInput) {
 
   if (!response.ok) {
     const body = await response.text();
+
     throw new Error(`Resend failed (${response.status}): ${body}`);
   }
 

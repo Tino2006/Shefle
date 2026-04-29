@@ -3,23 +3,23 @@
  */
 
 const STOPWORDS = new Set([
-  'inc',
-  'llc',
-  'ltd',
-  'limited',
-  'corporation',
-  'corp',
-  'company',
-  'co',
-  'group',
-  'international',
-  'intl',
-  'the',
-  'and',
-  'or',
-  'of',
-  'a',
-  'an',
+  "inc",
+  "llc",
+  "ltd",
+  "limited",
+  "corporation",
+  "corp",
+  "company",
+  "co",
+  "group",
+  "international",
+  "intl",
+  "the",
+  "and",
+  "or",
+  "of",
+  "a",
+  "an",
 ]);
 
 /**
@@ -37,22 +37,25 @@ export function generateCandidateQueries(normalizedText: string): string[] {
   // 2. Split into tokens and filter stopwords
   const tokens = normalizedText
     .split(/\s+/)
-    .filter(token => token.length > 0 && !STOPWORDS.has(token.toLowerCase()));
+    .filter((token) => token.length > 0 && !STOPWORDS.has(token.toLowerCase()));
 
   // 3. Top 1-3 tokens by length (descending)
-  const topTokens = [...tokens]
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 3);
+  const topTokens = [...tokens].sort((a, b) => b.length - a.length).slice(0, 3);
 
-  topTokens.forEach(token => {
+  topTokens.forEach((token) => {
     if (token && !candidates.includes(token)) {
       candidates.push(token);
     }
   });
 
   // 4. Concatenated version (remove all spaces)
-  const concatenated = normalizedText.replace(/\s+/g, '');
-  if (concatenated && concatenated !== normalizedText && !candidates.includes(concatenated)) {
+  const concatenated = normalizedText.replace(/\s+/g, "");
+
+  if (
+    concatenated &&
+    concatenated !== normalizedText &&
+    !candidates.includes(concatenated)
+  ) {
     candidates.push(concatenated);
   }
 
@@ -62,13 +65,17 @@ export function generateCandidateQueries(normalizedText: string): string[] {
 /**
  * Deduplicate results by (office, serial_number), keeping the one with max similarity
  */
-export function deduplicateResults<T extends { office?: string; serial_number: string; similarity_score: number }>(
-  results: T[]
-): T[] {
+export function deduplicateResults<
+  T extends {
+    office?: string;
+    serial_number: string;
+    similarity_score: number;
+  },
+>(results: T[]): T[] {
   const map = new Map<string, T>();
 
   for (const result of results) {
-    const key = `${result.office || 'USPTO'}-${result.serial_number}`;
+    const key = `${result.office || "USPTO"}-${result.serial_number}`;
     const existing = map.get(key);
 
     if (!existing || result.similarity_score > existing.similarity_score) {
@@ -86,18 +93,18 @@ export function deduplicateResults<T extends { office?: string; serial_number: s
  * 3. Then status priority: ACTIVE > PENDING > DEAD
  * 4. Optional: boost if overlaps selected Nice classes
  */
-export function rankResults<T extends { 
-  similarity_score: number; 
-  status_norm: string | null;
-  classes?: number[];
-}>(
-  results: T[],
-  selectedClasses?: number[]
-): T[] {
+export function rankResults<
+  T extends {
+    similarity_score: number;
+    status_norm: string | null;
+    classes?: number[];
+  },
+>(results: T[], selectedClasses?: number[]): T[] {
   return [...results].sort((a, b) => {
     // 1. Exact/near match first
     const aExact = a.similarity_score >= 0.95 ? 1 : 0;
     const bExact = b.similarity_score >= 0.95 ? 1 : 0;
+
     if (aExact !== bExact) return bExact - aExact;
 
     // 2. Similarity score descending
@@ -107,18 +114,24 @@ export function rankResults<T extends {
 
     // 3. Status priority
     const statusPriority: Record<string, number> = {
-      'ACTIVE': 3,
-      'PENDING': 2,
-      'DEAD': 1,
+      ACTIVE: 3,
+      PENDING: 2,
+      DEAD: 1,
     };
-    const aPriority = statusPriority[a.status_norm || ''] || 0;
-    const bPriority = statusPriority[b.status_norm || ''] || 0;
+    const aPriority = statusPriority[a.status_norm || ""] || 0;
+    const bPriority = statusPriority[b.status_norm || ""] || 0;
+
     if (aPriority !== bPriority) return bPriority - aPriority;
 
     // 4. Optional: boost if overlaps selected Nice classes
     if (selectedClasses && selectedClasses.length > 0) {
-      const aOverlap = (a.classes || []).filter(c => selectedClasses.includes(c)).length;
-      const bOverlap = (b.classes || []).filter(c => selectedClasses.includes(c)).length;
+      const aOverlap = (a.classes || []).filter((c) =>
+        selectedClasses.includes(c),
+      ).length;
+      const bOverlap = (b.classes || []).filter((c) =>
+        selectedClasses.includes(c),
+      ).length;
+
       if (aOverlap !== bOverlap) return bOverlap - aOverlap;
     }
 

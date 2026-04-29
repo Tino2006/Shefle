@@ -1,34 +1,45 @@
+import fs from "fs";
+import path from "path";
+import os from "os";
+
 import {
   AutoProcessor,
   CLIPVisionModelWithProjection,
   RawImage,
-} from '@xenova/transformers';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+} from "@xenova/transformers";
 
 /**
  * Image embedding service using CLIP (Contrastive Language-Image Pre-training)
  * Generates 512-dimensional embeddings for visual similarity comparison
  */
 
-let processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>> | null = null;
-let visionModel: Awaited<ReturnType<typeof CLIPVisionModelWithProjection.from_pretrained>> | null = null;
+let processor: Awaited<
+  ReturnType<typeof AutoProcessor.from_pretrained>
+> | null = null;
+let visionModel: Awaited<
+  ReturnType<typeof CLIPVisionModelWithProjection.from_pretrained>
+> | null = null;
 
 /**
  * Initialize CLIP model (lazy-loaded on first use)
  */
 async function initializeModel() {
   if (!processor || !visionModel) {
-    console.log('[ImageEmbeddings] Loading CLIP model...');
+    console.log("[ImageEmbeddings] Loading CLIP model...");
     const startTime = Date.now();
-    
-    processor = await AutoProcessor.from_pretrained('Xenova/clip-vit-base-patch16');
-    visionModel = await CLIPVisionModelWithProjection.from_pretrained('Xenova/clip-vit-base-patch16');
-    
+
+    processor = await AutoProcessor.from_pretrained(
+      "Xenova/clip-vit-base-patch16",
+    );
+    visionModel = await CLIPVisionModelWithProjection.from_pretrained(
+      "Xenova/clip-vit-base-patch16",
+    );
+
     const duration = Date.now() - startTime;
+
     console.log(`[ImageEmbeddings] CLIP model loaded in ${duration}ms`);
   }
+
   return { processor, visionModel };
 }
 
@@ -36,21 +47,27 @@ async function initializeModel() {
  * Generate embedding for an image buffer
  * Returns a 512-dimensional float32 array
  */
-export async function generateImageEmbedding(imageBuffer: Buffer): Promise<Float32Array> {
+export async function generateImageEmbedding(
+  imageBuffer: Buffer,
+): Promise<Float32Array> {
   const { processor, visionModel } = await initializeModel();
 
   // RawImage.read() only supports URLs and file paths, not buffers or data URLs
   // Write to temp file, process, then clean up
-  const tempFile = path.join(os.tmpdir(), `clip-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
-  
+  const tempFile = path.join(
+    os.tmpdir(),
+    `clip-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`,
+  );
+
   try {
     const imageBytes = new Uint8Array(
       imageBuffer.buffer,
       imageBuffer.byteOffset,
-      imageBuffer.byteLength
+      imageBuffer.byteLength,
     );
+
     fs.writeFileSync(tempFile, imageBytes);
-    
+
     const image = await RawImage.read(tempFile);
     const imageInputs = await processor(image);
     const { image_embeds } = await visionModel(imageInputs);
@@ -58,14 +75,17 @@ export async function generateImageEmbedding(imageBuffer: Buffer): Promise<Float
     // Extract the embedding as Float32Array
     // image_embeds is a Tensor with shape [1, 512]
     const embedding = image_embeds.data as Float32Array;
-    
+
     return embedding;
   } finally {
     // Clean up temp file
     try {
       fs.unlinkSync(tempFile);
     } catch (err) {
-      console.warn(`[ImageEmbeddings] Failed to delete temp file ${tempFile}:`, err);
+      console.warn(
+        `[ImageEmbeddings] Failed to delete temp file ${tempFile}:`,
+        err,
+      );
     }
   }
 }
@@ -74,7 +94,9 @@ export async function generateImageEmbedding(imageBuffer: Buffer): Promise<Float
  * Generate embedding for an image URL
  * Fetches the image, then generates embedding
  */
-export async function generateImageEmbeddingFromUrl(imageUrl: string): Promise<Float32Array> {
+export async function generateImageEmbeddingFromUrl(
+  imageUrl: string,
+): Promise<Float32Array> {
   const { processor, visionModel } = await initializeModel();
 
   const image = await RawImage.read(imageUrl);
@@ -82,7 +104,7 @@ export async function generateImageEmbeddingFromUrl(imageUrl: string): Promise<F
   const { image_embeds } = await visionModel(imageInputs);
 
   const embedding = image_embeds.data as Float32Array;
-  
+
   return embedding;
 }
 
@@ -92,7 +114,7 @@ export async function generateImageEmbeddingFromUrl(imageUrl: string): Promise<F
  */
 export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   if (a.length !== b.length) {
-    throw new Error('Embeddings must have the same length');
+    throw new Error("Embeddings must have the same length");
   }
 
   let dotProduct = 0;

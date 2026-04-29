@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { createClient } from "@/lib/supabase/client";
 
 /** `null` while the first client session check runs; then whether a user is signed in. */
@@ -9,6 +10,7 @@ export function useSessionUser() {
 
   useEffect(() => {
     const supabase = createClient();
+
     void supabase.auth.getUser().then(({ data: { user } }) => {
       setIsAuthed(!!user);
     });
@@ -17,6 +19,7 @@ export function useSessionUser() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthed(!!session?.user);
     });
+
     return () => subscription.unsubscribe();
   }, []);
 

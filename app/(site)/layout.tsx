@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
+
 import { SimpleNavbar } from "@/components/simple-navbar";
 import { getCurrentUserProfile } from "@/lib/auth";
-import { redirect } from "next/navigation";
 
 export default async function SiteLayout({
   children,
@@ -9,17 +10,15 @@ export default async function SiteLayout({
 }) {
   // Check if user is admin and redirect to admin panel
   const profile = await getCurrentUserProfile();
-  
-  if (profile && profile.role === 'admin') {
-    redirect('/admin');
+
+  if (profile && profile.role === "admin") {
+    redirect("/admin");
   }
 
   return (
     <div className="relative flex flex-col min-h-screen">
       <SimpleNavbar />
-      <main className="flex-grow">
-        {children}
-      </main>
+      <main className="flex-grow">{children}</main>
     </div>
   );
 }
