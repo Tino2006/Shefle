@@ -36,6 +36,7 @@ interface Watchlist {
 interface PortfolioTrademarkLogoRow {
   id: string;
   logo_url: string | null;
+  logo_image_url: string | null;
   approval_status: string;
 }
 
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
     if (portfolio_trademark_id) {
       const portfolioTrademark = await queryOne<PortfolioTrademarkLogoRow>(
         `
-          SELECT id::text, logo_url, COALESCE(approval_status, 'approved') AS approval_status
+          SELECT id::text, logo_url, logo_image_url, COALESCE(approval_status, 'approved') AS approval_status
           FROM public.portfolio_trademarks
           WHERE id = $1 AND user_id = $2
         `,
@@ -174,9 +175,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!resolvedImageBase64 && portfolioTrademark.logo_url) {
+      // Visual similarity must run against the brand logo, not the
+      // registration certificate. logo_url historically holds the certificate;
+      // logo_image_url is the actual brand logo. Skip visual checks if the
+      // logo is missing rather than fall back to the certificate.
+      if (!resolvedImageBase64 && portfolioTrademark.logo_image_url) {
         resolvedImageBase64 = await fetchImageAsBase64(
-          portfolioTrademark.logo_url,
+          portfolioTrademark.logo_image_url,
         );
       }
     }

@@ -483,7 +483,15 @@ export default function MonitorPage() {
 
                     return (
                       <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                        {sel.logo_url && isImageFileUrl(sel.logo_url) ? (
+                        {sel.logo_image_url ? (
+                          <div className="w-14 h-14 shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden">
+                            <img
+                              alt=""
+                              className="w-full h-full object-contain p-1"
+                              src={sel.logo_image_url}
+                            />
+                          </div>
+                        ) : sel.logo_url && isImageFileUrl(sel.logo_url) ? (
                           <div className="w-14 h-14 shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden">
                             <img
                               alt=""

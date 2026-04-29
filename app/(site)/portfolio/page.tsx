@@ -23,6 +23,9 @@ export default function PortfolioPage() {
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const isImageFileUrl = (url: string) =>
     /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
 
@@ -92,6 +95,35 @@ export default function PortfolioPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Logo must be an image (PNG, JPG, WEBP).");
+
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert("Logo must be under 8MB.");
+
+      return;
+    }
+
+    setLogoFile(file);
+    const reader = new FileReader();
+
+    reader.onload = () => setLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const clearLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  };
+
   const resetForm = () => {
     setRegNumber("");
     setCountry("");
@@ -100,6 +132,7 @@ export default function PortfolioPage() {
     setRegDate("");
     setMarkName("");
     clearCertificate();
+    clearLogo();
   };
 
   const addNicheClass = () => {
@@ -125,7 +158,8 @@ export default function PortfolioPage() {
       !country.trim() ||
       !regDate ||
       nicheClasses.length === 0 ||
-      !certificateFile
+      !certificateFile ||
+      !logoFile
     ) {
       alert("Please fill in all required fields.");
 
@@ -134,18 +168,18 @@ export default function PortfolioPage() {
 
     setCreating(true);
     try {
-      const formData = new FormData();
+      const certFormData = new FormData();
 
-      formData.append("file", certificateFile);
-      formData.append("fileType", "portfolio-certificate");
+      certFormData.append("file", certificateFile);
+      certFormData.append("fileType", "portfolio-certificate");
 
-      const uploadRes = await fetch("/api/upload", {
+      const certUploadRes = await fetch("/api/upload", {
         method: "POST",
-        body: formData,
+        body: certFormData,
       });
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
+      if (!certUploadRes.ok) {
+        const err = await certUploadRes.json();
 
         alert(`Certificate upload failed: ${err.error || "Unknown error"}`);
         setCreating(false);
@@ -153,8 +187,30 @@ export default function PortfolioPage() {
         return;
       }
 
-      const uploadData = await uploadRes.json();
-      const logoUrl: string = uploadData.fileUrl;
+      const certUploadData = await certUploadRes.json();
+      const certificateUrl: string = certUploadData.fileUrl;
+
+      const logoFormData = new FormData();
+
+      logoFormData.append("file", logoFile);
+      logoFormData.append("fileType", "portfolio-logo");
+
+      const logoUploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: logoFormData,
+      });
+
+      if (!logoUploadRes.ok) {
+        const err = await logoUploadRes.json();
+
+        alert(`Logo upload failed: ${err.error || "Unknown error"}`);
+        setCreating(false);
+
+        return;
+      }
+
+      const logoUploadData = await logoUploadRes.json();
+      const logoImageUrl: string = logoUploadData.fileUrl;
 
       const res = await fetch("/api/portfolio", {
         method: "POST",
@@ -164,7 +220,8 @@ export default function PortfolioPage() {
           country: country.trim(),
           niche_classes: nicheClasses,
           registration_date: regDate,
-          logo_url: logoUrl,
+          logo_url: certificateUrl,
+          logo_image_url: logoImageUrl,
           mark_name: markName.trim(),
         }),
       });
@@ -465,6 +522,75 @@ export default function PortfolioPage() {
                 />
               </div>
 
+              {/* Logo Upload (used by the monitor for visual similarity) */}
+              <div>
+                <label
+                  className="mb-1.5 block text-sm font-medium text-gray-700"
+                  htmlFor="portfolio-logo-input"
+                >
+                  Brand Logo <span className="text-red-500">*</span>
+                </label>
+                <p className="mb-2 text-xs text-gray-500">
+                  Upload the actual brand logo (image only). The monitor uses
+                  this to find visually similar logos online — not the
+                  certificate.
+                </p>
+                {logoPreview ? (
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                      <img
+                        alt="Logo preview"
+                        className="w-full h-full object-contain p-1"
+                        src={logoPreview}
+                      />
+                    </div>
+                    <button
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                      type="button"
+                      onClick={clearLogo}
+                    >
+                      Remove logo
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 transition-colors hover:border-red-300 hover:bg-red-50/30"
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <div className="text-center">
+                      <svg
+                        className="mx-auto h-8 w-8 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                        />
+                      </svg>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Click to upload logo
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        PNG, JPG, WEBP up to 8MB
+                      </p>
+                    </div>
+                  </button>
+                )}
+                <input
+                  ref={logoInputRef}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  className="hidden"
+                  id="portfolio-logo-input"
+                  type="file"
+                  onChange={handleLogoChange}
+                />
+              </div>
+
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:gap-3 sm:pt-2">
                 <button
                   className="w-full rounded-lg bg-red-800 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto sm:px-6 sm:py-2"
@@ -475,7 +601,8 @@ export default function PortfolioPage() {
                     !country.trim() ||
                     !regDate ||
                     nicheClasses.length === 0 ||
-                    !certificateFile
+                    !certificateFile ||
+                    !logoFile
                   }
                   type="submit"
                 >
@@ -539,7 +666,18 @@ export default function PortfolioPage() {
                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start gap-4">
-                  {tm.logo_url && isImageFileUrl(tm.logo_url) ? (
+                  {tm.logo_image_url ? (
+                    <div className="w-16 h-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
+                      <img
+                        alt={tm.mark_name || tm.registration_number}
+                        className="w-full h-full object-contain p-1"
+                        src={tm.logo_image_url}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                  ) : tm.logo_url && isImageFileUrl(tm.logo_url) ? (
                     <div className="w-16 h-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden">
                       <img
                         alt={tm.mark_name || tm.registration_number}

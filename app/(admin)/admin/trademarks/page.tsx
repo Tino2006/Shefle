@@ -219,23 +219,44 @@ export default function AdminPortfolioTrademarks() {
                     </div>
                   </div>
 
-                  {tm.logo_url && (
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <a
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                        href={tm.logo_url}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        View certificate / file
-                      </a>
-                      {tm.logo_url && isImageFileUrl(tm.logo_url) && (
-                        <div className="w-20 h-20 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                          <img
-                            alt=""
-                            className="w-full h-full object-contain p-1"
-                            src={tm.logo_url}
-                          />
+                  {(tm.logo_url || tm.logo_image_url) && (
+                    <div className="mt-4 flex flex-wrap gap-3 items-center">
+                      {tm.logo_image_url && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-gray-500">Logo</span>
+                          <div className="w-20 h-20 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                            <img
+                              alt="Trademark logo"
+                              className="w-full h-full object-contain p-1"
+                              src={tm.logo_image_url}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {tm.logo_url && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-gray-500">
+                            Certificate
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <a
+                              className="text-sm text-blue-600 hover:text-blue-800"
+                              href={tm.logo_url}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                            >
+                              View certificate / file
+                            </a>
+                            {isImageFileUrl(tm.logo_url) && (
+                              <div className="w-20 h-20 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                                <img
+                                  alt="Trademark certificate"
+                                  className="w-full h-full object-contain p-1"
+                                  src={tm.logo_url}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

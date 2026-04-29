@@ -13,6 +13,7 @@ const createPortfolioTrademarkSchema = z.object({
     .min(1, "At least one niche class is required"),
   registration_date: z.string().min(1, "Registration date is required"),
   logo_url: z.string().min(1, "Certificate upload is required"),
+  logo_image_url: z.string().min(1, "Logo upload is required"),
   mark_name: z.string().min(1, "Mark name is required"),
 });
 
@@ -47,6 +48,7 @@ export async function GET() {
           COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
           registration_date::text,
           logo_url,
+          logo_image_url,
           mark_name,
           approval_status,
           rejection_reason,
@@ -71,6 +73,7 @@ export async function GET() {
             ARRAY[niche_class] AS niche_classes,
             registration_date::text,
             logo_url,
+            NULL::text AS logo_image_url,
             mark_name,
             'approved'::text AS approval_status,
             NULL::text AS rejection_reason,
@@ -94,6 +97,7 @@ export async function GET() {
             COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
             registration_date::text,
             logo_url,
+            NULL::text AS logo_image_url,
             mark_name,
             'approved'::text AS approval_status,
             NULL::text AS rejection_reason,
@@ -162,6 +166,7 @@ export async function POST(request: NextRequest) {
       country,
       registration_date,
       logo_url,
+      logo_image_url,
       mark_name,
     } = validated.data;
 
@@ -170,8 +175,8 @@ export async function POST(request: NextRequest) {
     try {
       result = await queryOne(
         `INSERT INTO public.portfolio_trademarks
-          (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, mark_name, approval_status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+          (user_id, registration_number, country, niche_class, niche_classes, registration_date, logo_url, logo_image_url, mark_name, approval_status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
         RETURNING
           id::text,
           user_id::text,
@@ -181,6 +186,7 @@ export async function POST(request: NextRequest) {
           COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
           registration_date::text,
           logo_url,
+          logo_image_url,
           mark_name,
           approval_status,
           rejection_reason,
@@ -196,6 +202,7 @@ export async function POST(request: NextRequest) {
           nicheClasses,
           registration_date,
           logo_url,
+          logo_image_url,
           mark_name,
         ],
       );
@@ -214,6 +221,7 @@ export async function POST(request: NextRequest) {
             ARRAY[niche_class] AS niche_classes,
             registration_date::text,
             logo_url,
+            NULL::text AS logo_image_url,
             mark_name,
             'approved'::text AS approval_status,
             NULL::text AS rejection_reason,
@@ -245,6 +253,7 @@ export async function POST(request: NextRequest) {
             COALESCE(niche_classes, ARRAY[niche_class]) AS niche_classes,
             registration_date::text,
             logo_url,
+            NULL::text AS logo_image_url,
             mark_name,
             'approved'::text AS approval_status,
             NULL::text AS rejection_reason,

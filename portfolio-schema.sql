@@ -44,6 +44,12 @@ UPDATE public.portfolio_trademarks
 SET niche_classes = ARRAY[niche_class]
 WHERE niche_classes IS NULL OR array_length(niche_classes, 1) IS NULL;
 
+-- Brand logo image (separate from logo_url which historically holds the
+-- registration certificate). Used by the monitor system for CLIP visual
+-- similarity. Image-only (no PDFs); upload via fileType='portfolio-logo'.
+ALTER TABLE public.portfolio_trademarks
+  ADD COLUMN IF NOT EXISTS logo_image_url TEXT;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_portfolio_trademarks_user_id
   ON public.portfolio_trademarks(user_id);
@@ -109,7 +115,8 @@ COMMENT ON COLUMN public.portfolio_trademarks.country IS 'Country of trademark r
 COMMENT ON COLUMN public.portfolio_trademarks.niche_class IS 'Niche class (1-45)';
 COMMENT ON COLUMN public.portfolio_trademarks.niche_classes IS 'One or more niche classes (1-45), first value mirrors niche_class';
 COMMENT ON COLUMN public.portfolio_trademarks.registration_date IS 'Date the trademark was registered';
-COMMENT ON COLUMN public.portfolio_trademarks.logo_url IS 'URL to the trademark logo in Supabase Storage';
+COMMENT ON COLUMN public.portfolio_trademarks.logo_url IS 'URL to the registration certificate (PDF or image) in Supabase Storage. Historical name; not used for visual similarity.';
+COMMENT ON COLUMN public.portfolio_trademarks.logo_image_url IS 'URL to the brand logo image in Supabase Storage. Image-only. Used by the monitor system for CLIP visual similarity.';
 COMMENT ON COLUMN public.portfolio_trademarks.mark_name IS 'Display name for the trademark';
 COMMENT ON COLUMN public.watchlists.portfolio_trademark_id IS 'FK to the portfolio trademark being monitored';
 

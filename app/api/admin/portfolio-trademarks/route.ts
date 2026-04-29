@@ -35,6 +35,7 @@ export async function GET(request: Request) {
           COALESCE(pt.niche_classes, ARRAY[pt.niche_class]) AS niche_classes,
           pt.registration_date::text,
           pt.logo_url,
+          pt.logo_image_url,
           pt.mark_name,
           pt.approval_status,
           pt.rejection_reason,

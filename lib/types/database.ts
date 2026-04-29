@@ -154,6 +154,7 @@ export type PortfolioTrademark = {
   niche_classes?: number[];
   registration_date: string;
   logo_url: string | null;
+  logo_image_url: string | null;
   mark_name: string | null;
   approval_status: PortfolioTrademarkApprovalStatus;
   rejection_reason: string | null;
