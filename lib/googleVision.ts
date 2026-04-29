@@ -76,6 +76,29 @@ function loadVisionCredentialsFromEnv(): VisionServiceAccountCredentials | null 
   return null;
 }
 
+/** Same condition as getVisionClient: serverless/production must ship credentials in env. */
+export function requiresVisionCredentialsInEnv(): boolean {
+  return !!(process.env.VERCEL || process.env.VERCEL_ENV === "production");
+}
+
+/**
+ * True if any credential env var is non-empty (does not validate JSON).
+ * Use before calling Vision to fail fast with a clear error.
+ */
+export function hasVisionCredentialEnvVar(): boolean {
+  const json = process.env.GOOGLE_CREDENTIALS_JSON?.trim();
+
+  if (json && json.length > 0) return true;
+
+  const gac = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+
+  if (gac && gac.startsWith("{")) return true;
+
+  const b64 = process.env.GOOGLE_CREDENTIALS_BASE64?.trim();
+
+  return !!(b64 && b64.length > 0);
+}
+
 function getVisionClient() {
   const credentials = loadVisionCredentialsFromEnv();
 
@@ -89,7 +112,7 @@ function getVisionClient() {
     });
   }
 
-  if (process.env.VERCEL || process.env.VERCEL_ENV === "production") {
+  if (requiresVisionCredentialsInEnv()) {
     throw new Error(
       "[Vision API] Missing credentials in Vercel runtime. Set GOOGLE_CREDENTIALS_JSON to the full service account JSON in Vercel Project Settings > Environment Variables, then redeploy.",
     );
@@ -97,6 +120,25 @@ function getVisionClient() {
 
   // Local dev fallback with gcloud ADC.
   return new vision.ImageAnnotatorClient();
+}
+
+function serializeGoogleRpcError(err: unknown): Record<string, unknown> {
+  if (err == null) return { message: "null" };
+
+  if (typeof err === "object") {
+    const e = err as Record<string, unknown> & { stack?: string };
+
+    return {
+      name: e.name,
+      message: typeof e.message === "string" ? e.message : String(err),
+      code: e.code,
+      status: e.status,
+      details: e.details,
+      stack: typeof e.stack === "string" ? e.stack : undefined,
+    };
+  }
+
+  return { message: String(err) };
 }
 
 /**
@@ -292,10 +334,26 @@ export async function detectImageEntities(
     return trimmed.length > 0 ? trimmed : undefined;
   };
 
-  const [result] = await client.annotateImage({
-    image: { content: imageBuffer.toString("base64") },
-    features: [{ type: "WEB_DETECTION" }, { type: "TEXT_DETECTION" }],
-  });
+  let result;
+
+  try {
+    [result] = await client.annotateImage({
+      image: { content: imageBuffer.toString("base64") },
+      features: [{ type: "WEB_DETECTION" }, { type: "TEXT_DETECTION" }],
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console -- Vision RPC failure diagnostics (Vercel)
+    console.error(
+      "[Vision API] annotateImage RPC failed:",
+      JSON.stringify(serializeGoogleRpcError(err), null, 2),
+    );
+    throw err;
+  }
+
+  // eslint-disable-next-line no-console -- annotateImage success marker for log correlation
+  console.log(
+    "[Vision API] annotateImage OK (WEB_DETECTION + TEXT_DETECTION features)",
+  );
 
   const webDetection = result.webDetection;
 
