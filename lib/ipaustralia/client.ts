@@ -95,7 +95,9 @@ async function fetchAccessToken(): Promise<string> {
     "body",
   );
 
-  console.log(`[IP AU] POST ${tokenUrl} (body) → ${responseBodyStrategy.status}`);
+  console.log(
+    `[IP AU] POST ${tokenUrl} (body) → ${responseBodyStrategy.status}`,
+  );
 
   let response = responseBodyStrategy;
 

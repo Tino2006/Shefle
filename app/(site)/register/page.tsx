@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+
+import { getCountryOptions } from "@/lib/countries";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,22 +12,16 @@ export default function RegisterPage() {
   const [registrationType, setRegistrationType] = useState<
     "individual" | "company"
   >("individual");
-  const [poaFileName, setPoaFileName] = useState<string>("");
   const [logoFileName, setLogoFileName] = useState<string>("");
   const [licenseFileName, setLicenseFileName] = useState<string>("");
   const [passportFileName, setPassportFileName] = useState<string>("");
-  const [poaFile, setPoaFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [isColored, setIsColored] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handlePoaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setPoaFileName(e.target.files[0].name);
-      setPoaFile(e.target.files[0]);
-    }
-  };
+  const countryOptions = useMemo(() => getCountryOptions(), []);
 
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -112,8 +108,8 @@ export default function RegisterPage() {
         return;
       }
 
-      if (!poaFile || !logoFile) {
-        toast.error("Please upload POA and Logo files");
+      if (!logoFile) {
+        toast.error("Please upload your logo");
         setIsSubmitting(false);
 
         return;
@@ -136,7 +132,6 @@ export default function RegisterPage() {
       // Upload files
       toast.loading("Uploading files...");
 
-      const poaFileUrl = await uploadFile(poaFile, "poa");
       const logoFileUrl = await uploadFile(logoFile, "logo");
       let businessLicenseUrl: string | undefined;
       let passportFileUrl: string | undefined;
@@ -173,7 +168,7 @@ export default function RegisterPage() {
           buildingNumber,
           registrationCountry,
           typeOfWork,
-          poaFileUrl,
+          isColored,
           logoFileUrl,
           businessLicenseUrl,
           passportFileUrl,
@@ -194,14 +189,13 @@ export default function RegisterPage() {
 
       // Reset form
       formRef.current?.reset();
-      setPoaFileName("");
       setLogoFileName("");
       setLicenseFileName("");
       setPassportFileName("");
-      setPoaFile(null);
       setLogoFile(null);
       setLicenseFile(null);
       setPassportFile(null);
+      setIsColored(false);
       setRegistrationType("individual");
 
       // Redirect to profile or success page after 2 seconds
@@ -407,11 +401,11 @@ export default function RegisterPage() {
                 name="registrationCountry"
               >
                 <option value="">Country of registration</option>
-                <option value="lebanon">Lebanon</option>
-                <option value="uae">United Arab Emirates</option>
-                <option value="saudi">Saudi Arabia</option>
-                <option value="egypt">Egypt</option>
-                <option value="jordan">Jordan</option>
+                {countryOptions.map(({ code, name }) => (
+                  <option key={code} value={name}>
+                    {name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -430,79 +424,6 @@ export default function RegisterPage() {
                 placeholder="What type of work do you do?"
                 type="text"
               />
-            </div>
-
-            {/* Upload POA */}
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                Upload POA (Power of Attorney){" "}
-                <span className="text-red-600">*</span>
-              </label>
-              {poaFileName && (
-                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                  <svg
-                    className="w-4 h-4 text-red-600"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      clipRule="evenodd"
-                      d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
-                      fillRule="evenodd"
-                    />
-                  </svg>
-                  <span className="text-sm text-gray-700 flex-1">
-                    PDF - {poaFileName}
-                  </span>
-                  <button
-                    className="text-red-600 hover:text-red-800"
-                    type="button"
-                    onClick={() => {
-                      setPoaFileName("");
-                      setPoaFile(null);
-                    }}
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        clipRule="evenodd"
-                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                        fillRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              <label className="cursor-pointer">
-                <input
-                  accept=".pdf"
-                  className="hidden"
-                  type="file"
-                  onChange={handlePoaFileChange}
-                />
-                <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-800 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                  Select file
-                </span>
-              </label>
-              <p className="text-xs text-gray-500 mt-2">
-                Maximum file size: 10MB, PDF only.
-              </p>
             </div>
 
             {/* Upload Wordmark or Logo */}
@@ -576,6 +497,21 @@ export default function RegisterPage() {
                 Maximum file size: 10MB. Accepted formats: PNG, JPG, GIF, WebP,
                 PDF
               </p>
+            </div>
+
+            {/* Trademark color */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  checked={isColored}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                  type="checkbox"
+                  onChange={(e) => setIsColored(e.target.checked)}
+                />
+                <span className="text-sm font-medium text-gray-900">
+                  Trademark is colored
+                </span>
+              </label>
             </div>
 
             {/* Upload Business License (Company only) */}

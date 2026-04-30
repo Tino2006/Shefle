@@ -67,7 +67,7 @@ export type Brand = {
   building_number: string | null;
   registration_country: string;
   type_of_work: string | null;
-  poa_file_url: string;
+  is_colored: boolean;
   logo_file_url: string;
   business_license_url: string | null;
   passport_file_url: string | null;

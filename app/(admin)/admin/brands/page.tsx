@@ -204,14 +204,6 @@ export default function AdminBrands() {
                   <div className="mt-4 flex gap-3">
                     <a
                       className="text-sm text-blue-600 hover:text-blue-800"
-                      href={brand.poa_file_url}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    >
-                      📄 POA Document
-                    </a>
-                    <a
-                      className="text-sm text-blue-600 hover:text-blue-800"
                       href={brand.logo_file_url}
                       rel="noopener noreferrer"
                       target="_blank"

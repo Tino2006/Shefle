@@ -135,10 +135,12 @@ CREATE TABLE public.brands (
   type_of_work TEXT,
   
   -- File URLs (stored in Supabase Storage)
-  poa_file_url TEXT NOT NULL,
   logo_file_url TEXT NOT NULL,
   business_license_url TEXT,
   passport_file_url TEXT,
+
+  -- Trademark visual attributes
+  is_colored BOOLEAN NOT NULL DEFAULT FALSE,
   
   -- Status
   status TEXT CHECK (status IN ('pending', 'under_review', 'approved', 'rejected')) DEFAULT 'pending',
@@ -267,7 +269,7 @@ CREATE INDEX idx_usage_tracking_user_id ON public.usage_tracking(user_id);
 -- STORAGE BUCKETS (Create these in Supabase Storage UI or via SQL)
 -- =====================================================
 -- You'll need to create these buckets in Supabase Dashboard -> Storage:
--- 1. 'brand-files' - for POA, logos, business licenses
+-- 1. 'brand-files' - for logos, business licenses, passports
 -- 2. 'contact-attachments' - for contact form files
 -- 
 -- Or run these commands:

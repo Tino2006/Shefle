@@ -17,18 +17,17 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
-    const fileType = formData.get("fileType") as string; // 'poa', 'logo', 'license', or 'passport'
+    const fileType = formData.get("fileType") as string; // 'logo', 'license', or 'passport'
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     // Validate file type based on what's being uploaded
-    if (fileType === "poa" || fileType === "license") {
-      // POA and Business License must be PDF
+    if (fileType === "license") {
       if (file.type !== "application/pdf") {
         return NextResponse.json(
-          { error: "POA and Business License must be PDF files" },
+          { error: "Business License must be a PDF file" },
           { status: 400 },
         );
       }

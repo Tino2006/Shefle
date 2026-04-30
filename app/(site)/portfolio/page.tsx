@@ -2,8 +2,10 @@
 
 import type { PortfolioTrademark } from "@/lib/types/database";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
+
+import { getCountryOptions } from "@/lib/countries";
 
 export default function PortfolioPage() {
   const [trademarks, setTrademarks] = useState<PortfolioTrademark[]>([]);
@@ -28,6 +30,8 @@ export default function PortfolioPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const isImageFileUrl = (url: string) =>
     /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
+
+  const countryOptions = useMemo(() => getCountryOptions(), []);
 
   const statusBadgeClass = (status: PortfolioTrademark["approval_status"]) => {
     if (status === "approved") return "bg-green-100 text-green-800";
@@ -346,14 +350,19 @@ export default function PortfolioPage() {
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
                     Country <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <select
                     required
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
-                    placeholder="e.g. United States"
-                    type="text"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-gray-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                  />
+                  >
+                    <option value="">Select country</option>
+                    {countryOptions.map(({ code, name }) => (
+                      <option key={code} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="sm:col-span-2">
