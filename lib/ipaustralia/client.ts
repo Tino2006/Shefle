@@ -94,9 +94,20 @@ async function fetchAccessToken(): Promise<string> {
     clientSecret,
     "body",
   );
-  const response = responseBodyStrategy.ok
-    ? responseBodyStrategy
-    : await requestTokenWithStrategy(tokenUrl, clientId, clientSecret, "basic");
+
+  console.log(`[IP AU] POST ${tokenUrl} (body) → ${responseBodyStrategy.status}`);
+
+  let response = responseBodyStrategy;
+
+  if (!responseBodyStrategy.ok) {
+    response = await requestTokenWithStrategy(
+      tokenUrl,
+      clientId,
+      clientSecret,
+      "basic",
+    );
+    console.log(`[IP AU] POST ${tokenUrl} (basic) → ${response.status}`);
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -149,6 +160,8 @@ async function fetchIPAU<T>(path: string, init: RequestInit): Promise<T> {
     headers,
     signal: withTimeout(10000),
   });
+
+  console.log(`[IP AU] ${init.method || "GET"} ${path} → ${response.status}`);
 
   if (!response.ok) {
     const text = await response.text();
