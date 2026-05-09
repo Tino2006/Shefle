@@ -23,9 +23,21 @@ function restPath(config: AreebaConfig, suffix: string): string {
  * URL of the MPGS Checkout JS SDK that the browser must load. Calling
  * `Checkout.configure({ session: { id }})` followed by `Checkout.showPaymentPage()`
  * is the documented entry point — there is no static "/checkout.html" URL to
- * direct-redirect to. Returning this URL lets the frontend inject the script.
+ * direct-redirect to.
+ *
+ * For API version >= 63 the SDK lives at `/static/checkout/checkout.min.js`;
+ * loading the legacy `/checkout/version/<V>/checkout.js` on v63+ yields the
+ * runtime error "The URL of checkout.js has moved." We're on v100 so this
+ * always picks the new path, but we keep the branch in case a future merchant
+ * gets pinned to an older version.
  */
 export function areebaCheckoutScriptUrl(config: AreebaConfig): string {
+  const versionNum = parseInt(config.apiVersion, 10);
+
+  if (Number.isFinite(versionNum) && versionNum >= 63) {
+    return `${config.gatewayBaseUrl}/static/checkout/checkout.min.js`;
+  }
+
   return `${config.gatewayBaseUrl}/checkout/version/${config.apiVersion}/checkout.js`;
 }
 
