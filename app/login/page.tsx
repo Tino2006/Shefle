@@ -16,6 +16,7 @@ function LoginForm() {
   const [oauthProviderLoading, setOauthProviderLoading] = useState(false);
   const verified = searchParams.get("verified");
   const authError = searchParams.get("error_code") || searchParams.get("error");
+  const authErrorDescription = searchParams.get("error_description");
 
   useEffect(() => {
     if (verified === "1") {
@@ -24,12 +25,29 @@ function LoginForm() {
       return;
     }
 
-    if (authError === "otp_expired") {
-      toast.error(
+    if (!authError) return;
+
+    const messages: Record<string, string> = {
+      otp_expired:
         "Verification link is invalid or expired. Please request a new one.",
-      );
-    }
-  }, [verified, authError]);
+      access_denied: "Access was denied. Please try signing in again.",
+      missing_oauth_code:
+        "Google sign-in didn't return a code. Please try again.",
+      oauth_exchange_failed:
+        "Google sign-in failed. Please try again or use email/password.",
+      invalid_confirmation_link:
+        "That confirmation link is invalid. Please request a new one.",
+      profile_not_created:
+        "Your account was created but the profile row couldn't be saved. Contact support.",
+      unauthorized: "You don't have permission to view that page.",
+    };
+
+    toast.error(
+      messages[authError] ||
+        authErrorDescription ||
+        `Authentication error: ${authError}`,
+    );
+  }, [verified, authError, authErrorDescription]);
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -87,6 +105,7 @@ function LoginForm() {
         provider: "google",
         options: {
           redirectTo: callbackUrl.toString(),
+          queryParams: { prompt: "select_account" },
         },
       });
 

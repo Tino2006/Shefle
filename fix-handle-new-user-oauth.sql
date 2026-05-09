@@ -68,12 +68,14 @@ BEGIN
     END IF;
   END IF;
 
+  -- Role is hard-coded to 'user'. Promotion to 'admin' must be done explicitly
+  -- (via service_role or by an existing admin) so signup metadata cannot self-promote.
   INSERT INTO public.profiles (id, first_name, last_name, role, referral_code, referred_by_user_id)
   VALUES (
     NEW.id,
     first_name_val,
     last_name_val,
-    COALESCE(meta->>'role', 'user'),
+    'user',
     new_code,
     referrer_id
   );

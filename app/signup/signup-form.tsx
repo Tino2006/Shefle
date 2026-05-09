@@ -105,6 +105,7 @@ export default function SignupForm() {
         provider,
         options: {
           redirectTo: callbackUrl.toString(),
+          queryParams: { prompt: "select_account" },
           ...(referral
             ? {
                 data: {

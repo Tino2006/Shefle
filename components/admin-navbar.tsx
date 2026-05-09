@@ -14,6 +14,7 @@ export function AdminNavbar() {
       await fetch("/api/auth/logout", { method: "POST" });
       toast.success("Logged out");
       router.push("/login");
+      router.refresh();
     } catch (error) {
       toast.error("Failed to logout");
     }

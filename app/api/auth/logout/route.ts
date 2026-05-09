@@ -6,7 +6,7 @@ export async function POST() {
   try {
     const supabase = await createClient();
 
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: "global" });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

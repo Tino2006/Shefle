@@ -45,6 +45,10 @@ export async function GET(request: Request) {
 
     if (!ensured.ok) {
       console.error("[auth/confirm] ensureProfileIfMissing:", ensured.error);
+
+      return NextResponse.redirect(
+        new URL("/login?error=profile_not_created", requestUrl.origin),
+      );
     }
   }
 
