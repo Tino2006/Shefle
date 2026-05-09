@@ -40,6 +40,15 @@ export default function PaymentResultPage() {
 
     (async () => {
       try {
+        // Step 1: reconcile against Areeba's GET /order API (source of truth).
+        // Best-effort: if Areeba is unreachable or this fails, fall through to
+        // the read so we still render whatever the row currently says.
+        await fetch(
+          `/api/payments/${encodeURIComponent(ref)}/reconcile`,
+          { method: "POST" },
+        ).catch(() => {});
+
+        // Step 2: read the (now reconciled) row.
         const res = await fetch(`/api/payments/${encodeURIComponent(ref)}`);
 
         if (!res.ok) {

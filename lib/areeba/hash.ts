@@ -1,14 +1,22 @@
 import type { AreebaCallbackParams } from "./types";
 
 /**
- * Verify the Secure Hash returned by Areeba on a callback / return URL.
+ * Verify the Secure Hash returned by Areeba on a webhook / return URL.
  *
- * SCAFFOLD ONLY — returns `false` until both:
+ * SCOPE: forensic / tamper-detection ONLY.
+ *
+ * As of the GET-as-truth architecture (per Areeba's own guidance),
+ * payment status decisions are made by calling the authenticated
+ * `GET /api/rest/.../order/{id}` endpoint over TLS. This function's
+ * boolean return is logged alongside the webhook payload but does not
+ * drive any state transition. If the hash doesn't match a real
+ * payload, that's a signal worth investigating, not a reason to flip
+ * the row to `failed`.
+ *
+ * Returns `false` until both:
  *   1. AREEBA_HASH_SECRET is configured, AND
  *   2. The TODO block below is filled in with the canonical algorithm
- *      from the Areeba / MPGS integration doc. Per Annex B §3, a failed
- *      verification means the transaction is treated as DECLINED even
- *      if the response code is approval (0). Do not weaken this contract.
+ *      from the Areeba / MPGS integration doc.
  *
  * Canonical MPGS algorithm (confirm against the merchant doc before enabling):
  *   - Drop the `secureHash` (or `hash`) field from `params`.
@@ -26,8 +34,7 @@ export function verifyAreebaHash(
   if (!secret) return false;
 
   // TODO(areeba): implement per the Areeba integration guide once the Secure
-  // Hash Secret is available. Until then this MUST stay `false` so that
-  // callbacks are quarantined as `pending_verification`, never `paid`.
+  // Hash Secret is available. Forensic-only; do not gate payment decisions.
   void params;
 
   return false;

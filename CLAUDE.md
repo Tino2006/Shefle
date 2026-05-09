@@ -42,7 +42,7 @@ Copy `.env.local.example` → `.env.local`. Critical vars:
 - `EUIPO_API_KEY` / `EUIPO_API_SECRET` / `EUIPO_TOKEN_URL` / `EUIPO_API_BASE_URL` — EUIPO IBM gateway. **Token URL is the bare `euipo.europa.eu` host** (not `api.euipo.europa.eu`); per the OpenAPI spec the CAS auth server lives off the gateway. Token endpoint is hit with HTTP Basic (`EUIPO_API_KEY`:`EUIPO_API_SECRET`) and `scope=uid`; the resulting bearer token is sent on every search call alongside `X-IBM-Client-Id: ${EUIPO_API_KEY}`.
 - `GOOGLE_CREDENTIALS_JSON` — full service-account JSON inline (used by `@google-cloud/vision`).
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
-- `AREEBA_*` — second payment provider. `AREEBA_MERCHANT_ID` + `AREEBA_API_PASSWORD` + `AREEBA_GATEWAY_BASE_URL` are required for `/api/payments/initiate` (otherwise returns 501 `GATEWAY_NOT_CONFIGURED`). `AREEBA_HASH_SECRET` is optional but **load-bearing**: while it's missing, the callback quarantines all responses as `pending_verification` (never `paid`). See "Payments" below.
+- `AREEBA_*` — second payment provider (MPGS hosted checkout). `AREEBA_MERCHANT_ID` + `AREEBA_API_PASSWORD` are hard requirements (initiate returns 501 `GATEWAY_NOT_CONFIGURED` otherwise). `AREEBA_GATEWAY_BASE_URL` defaults to `https://epayment.areeba.com`, `AREEBA_API_VERSION` defaults to `100`. `AREEBA_HASH_SECRET` is **forensic-only** — does not drive payment status. See "Payments" below.
 - `RESEND_API_KEY` / `RESEND_FROM_EMAIL` — outbound mail for monitor alerts.
 - `CRON_SECRET` — bearer token for `/api/cron/*` endpoints (set in Vercel).
 - `NEXT_PUBLIC_APP_URL` — used to build absolute URLs for email confirmations; set to live domain in production.
@@ -95,16 +95,18 @@ Both `/api/trademarks/search` and `/api/trademarks/multi-search` fan out to all 
 Two providers run in parallel against the same `transactions` table; the `provider` column ('stripe' | 'areeba') distinguishes rows.
 
 - **Stripe** (existing): `app/api/payments/create-checkout/route.ts`, `app/api/webhooks/stripe/route.ts`. Subscription/recurring model.
-- **Areeba** (scaffold): `lib/areeba/{config,client,hash,types}.ts`, `app/api/payments/initiate/route.ts`, `app/api/payments/areeba/callback/route.ts`, `app/api/payments/[ref]/route.ts`, `app/(site)/payment/result/page.tsx`. One-time charge per billing period; on success, creates a `subscriptions` row with `current_period_end = now + 1 month or 1 year`.
+- **Areeba**: `lib/areeba/{config,client,hash,reconcile,types}.ts`, `app/api/payments/initiate/route.ts`, `app/api/payments/areeba/callback/route.ts`, `app/api/payments/[ref]/route.ts`, `app/api/payments/[ref]/reconcile/route.ts`, `app/(site)/payment/result/page.tsx`. One-time charge per billing period; on success, creates a `subscriptions` row with `current_period_end = now + 1 month or 1 year`.
 
-**Areeba scaffold caveats — do not weaken these contracts:**
-1. `lib/areeba/hash.ts::verifyAreebaHash` returns `false` until both `AREEBA_HASH_SECRET` is set **and** the algorithm TODO is filled in from the integration doc.
-2. The callback route quarantines unverified responses as `pending_verification` (or `failed` once a secret is configured) — **never** `succeeded`. Annex B §3: signature failure ⇒ declined regardless of approval code.
-3. `lib/areeba/client.ts::createAreebaSession` throws `GATEWAY_NOT_CONFIGURED` until `AREEBA_GATEWAY_BASE_URL` is set and the fetch body is filled in. The route surfaces this as HTTP 501.
-4. Idempotency on `transactions.transaction_reference` (UNIQUE index) + status guard ensures duplicate callbacks are ignored (Annex B §6).
-5. Amount is **always** computed server-side from `subscription_plans.price` — frontend sends `{ planSlug, billingCycle }` only, never a price.
+**Areeba load-bearing contracts — do not weaken:**
+1. **GET `/api/rest/.../order/{id}` is the source of truth** (per Areeba's own guidance). The webhook is unreliable and treated as log-only; status transitions live exclusively inside `lib/areeba/reconcile.ts::reconcileTransaction`. That helper is idempotent, no-ops on terminal status, and validates returned `amount`/`currency` against the stored values before transitioning.
+2. **Hash secret is forensic-only.** `verifyAreebaHash` runs against webhook payloads (when `AREEBA_HASH_SECRET` is set) and the boolean is logged inside `raw_response`. It does not drive `pending → succeeded|failed` decisions. If Areeba ever reverses guidance, gating logic is one branch in `reconcileTransaction`.
+3. **`createAreebaSession` requires `AREEBA_API_PASSWORD`.** Generated from the merchant dashboard at `https://epayment.areeba.com/ma/login.s`. Until set, initiate returns 501 `GATEWAY_NOT_CONFIGURED`. `AREEBA_GATEWAY_BASE_URL` and `AREEBA_API_VERSION` default to `https://epayment.areeba.com` and `100` respectively — override only if the integration doc says otherwise.
+4. **Idempotency**: UNIQUE index on `transactions.transaction_reference` + status guard inside reconcile.
+5. **Amount is always computed server-side** from `subscription_plans.price`. Frontend POSTs `{ planSlug, billingCycle }` only — never a price.
 
-DB migration: `supabase-areeba-migration.sql` (extends `transactions`, adds enum values `pending_verification` / `cancelled`, seeds Starter/Growth/Enterprise plans). Apply via Supabase SQL Editor.
+Result-page flow: `/payment/result?ref=<uuid>` POSTs `/api/payments/[ref]/reconcile` on mount (forces a GET against Areeba and updates the row), then GETs `/api/payments/[ref]` to render. Both are auth-gated and ownership-checked.
+
+DB migration: `supabase-areeba-migration.sql` (extends `transactions`, adds enum values `pending_verification` / `cancelled`, seeds Starter/Growth/Enterprise plans). Apply via Supabase SQL Editor. `pending_verification` is reserved for future use; the GET-as-truth flow doesn't currently transition rows into it.
 
 ### Visual similarity
 

@@ -1,15 +1,36 @@
 import type { AreebaConfig } from "./config";
-import type { AreebaInitPayload, AreebaSessionResult } from "./types";
+import type {
+  AreebaInitPayload,
+  AreebaOrderApiResult,
+  AreebaOrderResult,
+  AreebaSessionResult,
+} from "./types";
 
 import { AreebaConfigError } from "./config";
+
+function basicAuthHeader(config: AreebaConfig): string {
+  const token = Buffer.from(
+    `merchant.${config.merchantId}:${config.apiPassword}`,
+  ).toString("base64");
+  return `Basic ${token}`;
+}
+
+function restPath(config: AreebaConfig, suffix: string): string {
+  return `${config.gatewayBaseUrl}/api/rest/version/${config.apiVersion}/merchant/${config.merchantId}${suffix}`;
+}
+
+function checkoutRedirectUrl(config: AreebaConfig, sessionId: string): string {
+  // MPGS hosted-checkout entry. checkoutVersion is independent of API version
+  // and is the JS SDK build number expected by the hosted page.
+  return `${config.gatewayBaseUrl}/checkout/version/${config.apiVersion}/checkout.html?checkoutVersion=1.0.0&sessionId=${encodeURIComponent(sessionId)}`;
+}
 
 /**
  * Build the Areeba init payload from a stored transaction.
  *
- * Field names follow the MPGS hosted-checkout convention; confirm against the
- * actual Areeba doc once the team has access — different MPGS deployments use
- * `order.id` / `transaction.reference` / `merchant.id` etc. We keep the field
- * names here generic and let `createAreebaSession` map to the wire format.
+ * The MPGS API uses dotted field names (`order.id`, `interaction.operation`,
+ * etc.) inside JSON; we keep our intermediate shape generic and let
+ * `createAreebaSession` map to the wire format.
  */
 export function buildInitPayload(
   config: AreebaConfig,
@@ -32,69 +53,149 @@ export function buildInitPayload(
 }
 
 /**
- * Call Areeba's session/initialize endpoint and return a redirect URL.
+ * Create a hosted-checkout session and return the URL to redirect the user to.
  *
- * SCAFFOLD ONLY — until AREEBA_GATEWAY_BASE_URL and the exact endpoint shape
- * are confirmed against the integration doc, this throws AreebaConfigError so
- * the route returns 501 with `GATEWAY_NOT_CONFIGURED`.
+ * MPGS REST: POST {base}/api/rest/version/{ver}/merchant/{merchantId}/session
+ * Auth:      HTTP Basic with username `merchant.{merchantId}` and the API password.
+ * Response:  { result, session: { id, version }, successIndicator? }
  *
- * When wiring this up:
- *   - MPGS hosted checkout: POST {baseUrl}/api/rest/version/{ver}/merchant/{merchantId}/session
- *     with HTTP Basic auth: username=`merchant.{merchantId}`, password=AREEBA_API_PASSWORD.
- *     Body includes interaction.operation=PURCHASE, order.id, order.amount, order.currency,
- *     and returns { session: { id } }. The redirect URL is then constructed via the
- *     hosted-checkout JS or a direct URL pattern from the doc.
- *   - Some Areeba deployments use a form-post flow instead; in that case `redirectUrl`
- *     would be a GET URL to the gateway with signed query params (uses verifyAreebaHash
- *     in reverse to sign).
+ * If the API password is missing the call short-circuits with
+ * `GATEWAY_NOT_CONFIGURED`; the route returns 501 in that case.
  */
 export async function createAreebaSession(
   config: AreebaConfig,
   payload: AreebaInitPayload,
 ): Promise<AreebaSessionResult> {
-  if (!config.gatewayBaseUrl) {
+  if (!config.apiPassword) {
     throw new AreebaConfigError(
       "GATEWAY_NOT_CONFIGURED",
-      "Areeba gateway endpoint not configured yet",
+      "AREEBA_API_PASSWORD is not set",
     );
   }
 
-  // TODO(areeba): replace this guard with the real fetch once the doc is
-  // confirmed. The shape below is the MPGS REST template — verify before use.
-  //
-  // const url = `${config.gatewayBaseUrl}/api/rest/version/100/merchant/${config.merchantId}/session`;
-  // const auth = Buffer.from(`merchant.${config.merchantId}:${config.apiPassword}`).toString('base64');
-  // const res = await fetch(url, {
-  //   method: 'POST',
-  //   headers: {
-  //     'Content-Type': 'application/json',
-  //     Authorization: `Basic ${auth}`,
-  //   },
-  //   body: JSON.stringify({
-  //     apiOperation: 'INITIATE_CHECKOUT',
-  //     interaction: {
-  //       operation: 'PURCHASE',
-  //       returnUrl: payload.returnUrl,
-  //     },
-  //     order: {
-  //       id: payload.transactionReference,
-  //       amount: payload.amount,
-  //       currency: payload.currency,
-  //       description: payload.description,
-  //     },
-  //   }),
-  // });
-  // if (!res.ok) throw new Error(`Areeba session create failed: ${res.status}`);
-  // const data = await res.json();
-  // return {
-  //   redirectUrl: `${config.gatewayBaseUrl}/checkout/version/100/checkout.html?checkoutVersion=1.0.0&sessionId=${data.session.id}`,
-  //   sessionId: data.session.id,
-  //   areebaOrderId: data.order?.id,
-  // };
+  const body = {
+    apiOperation: "INITIATE_CHECKOUT",
+    interaction: {
+      operation: "PURCHASE",
+      merchant: { name: "Shefle" },
+      returnUrl: `${payload.returnUrl}?ref=${encodeURIComponent(payload.transactionReference)}`,
+      displayControl: { billingAddress: "HIDE", customerEmail: "HIDE" },
+    },
+    order: {
+      id: payload.transactionReference,
+      amount: payload.amount,
+      currency: payload.currency,
+      description: payload.description,
+    },
+  };
 
-  void payload;
-  throw new AreebaConfigError(
-    "GATEWAY_NOT_CONFIGURED",
-    "Areeba gateway endpoint not configured yet",
+  const res = await fetch(restPath(config, "/session"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: basicAuthHeader(config),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Areeba session create failed: ${res.status} ${res.statusText} ${text.slice(0, 500)}`,
+    );
+  }
+
+  const json = (await res.json()) as {
+    result?: string;
+    session?: { id?: string; version?: string };
+    successIndicator?: string;
+    order?: { id?: string };
+  };
+
+  const sessionId = json.session?.id;
+  if (!sessionId) {
+    throw new Error(
+      `Areeba session response missing session.id: ${JSON.stringify(json).slice(0, 500)}`,
+    );
+  }
+
+  return {
+    redirectUrl: checkoutRedirectUrl(config, sessionId),
+    sessionId,
+    successIndicator: json.successIndicator,
+    areebaOrderId: json.order?.id ?? payload.transactionReference,
+  };
+}
+
+/**
+ * Fetch the canonical order state from Areeba. This is the **source of truth**
+ * for transitioning a transaction from `pending` to `succeeded|failed|cancelled`.
+ *
+ * Returns `{ result: 'NOT_FOUND', ... }` (rather than throwing) when Areeba
+ * 404s — that simply means the order hasn't been opened yet from the gateway's
+ * perspective. The caller can leave the row at `pending` and try again later.
+ */
+export async function getAreebaOrder(
+  config: AreebaConfig,
+  orderId: string,
+): Promise<AreebaOrderResult> {
+  if (!config.apiPassword) {
+    throw new AreebaConfigError(
+      "GATEWAY_NOT_CONFIGURED",
+      "AREEBA_API_PASSWORD is not set",
+    );
+  }
+
+  const res = await fetch(
+    restPath(config, `/order/${encodeURIComponent(orderId)}`),
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: basicAuthHeader(config),
+      },
+      cache: "no-store",
+    },
   );
+
+  if (res.status === 404) {
+    return {
+      result: "NOT_FOUND",
+      status: null,
+      amount: null,
+      currency: null,
+      raw: null,
+    };
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Areeba GET order failed: ${res.status} ${res.statusText} ${text.slice(0, 500)}`,
+    );
+  }
+
+  const json = (await res.json()) as {
+    result?: AreebaOrderApiResult;
+    status?: string | null;
+    amount?: number | string | null;
+    currency?: string | null;
+    transaction?: Array<{
+      transaction?: { id?: string };
+      authorizationResponse?: { authorizationCode?: string };
+    }>;
+  };
+
+  return {
+    result: (json.result ?? "PENDING") as AreebaOrderApiResult,
+    status: json.status ?? null,
+    amount: json.amount != null ? Number(json.amount) : null,
+    currency: json.currency ?? null,
+    authorizationCode:
+      json.transaction?.[0]?.authorizationResponse?.authorizationCode ?? null,
+    areebaTransactionId: json.transaction?.[0]?.transaction?.id ?? null,
+    raw: json,
+  };
 }

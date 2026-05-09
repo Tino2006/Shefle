@@ -7,11 +7,15 @@ function requireHttps(name: string, value: string | undefined): string | null {
   return value.replace(/\/+$/, "");
 }
 
+const DEFAULT_GATEWAY_BASE_URL = "https://epayment.areeba.com";
+const DEFAULT_API_VERSION = "100";
+
 export interface AreebaConfig {
   merchantId: string;
   apiPassword: string;
   hashSecret: string | null;
-  gatewayBaseUrl: string | null;
+  gatewayBaseUrl: string;
+  apiVersion: string;
   returnUrl: string;
   callbackUrl: string;
   currency: string;
@@ -30,18 +34,24 @@ export class AreebaConfigError extends Error {
  * Load Areeba env vars. Throws AreebaConfigError if anything required for
  * initiating a payment is missing (the caller turns this into a 501 response).
  *
- * `hashSecret` is optional here on purpose: it is only required at callback
- * time, and even then a missing secret causes responses to be quarantined as
- * `pending_verification` rather than refused.
+ * `hashSecret` is intentionally optional: as of the GET-as-truth architecture
+ * shift, hash verification is forensic-only and does not drive payment status.
+ *
+ * Defaults applied when env is unset:
+ *   - gatewayBaseUrl → https://epayment.areeba.com (same host as merchant dashboard)
+ *   - apiVersion     → "100" (current MPGS REST version; override if Areeba doc differs)
  */
 export function loadAreebaConfig(): AreebaConfig {
   const merchantId = process.env.AREEBA_MERCHANT_ID?.trim();
   const apiPassword = process.env.AREEBA_API_PASSWORD?.trim();
   const hashSecret = process.env.AREEBA_HASH_SECRET?.trim() || null;
-  const gatewayBaseUrl = requireHttps(
-    "AREEBA_GATEWAY_BASE_URL",
-    process.env.AREEBA_GATEWAY_BASE_URL?.trim(),
-  );
+  const gatewayBaseUrl =
+    requireHttps(
+      "AREEBA_GATEWAY_BASE_URL",
+      process.env.AREEBA_GATEWAY_BASE_URL?.trim(),
+    ) ?? DEFAULT_GATEWAY_BASE_URL;
+  const apiVersion =
+    process.env.AREEBA_API_VERSION?.trim() || DEFAULT_API_VERSION;
   const returnUrl = requireHttps(
     "AREEBA_RETURN_URL",
     process.env.AREEBA_RETURN_URL?.trim(),
@@ -61,13 +71,7 @@ export function loadAreebaConfig(): AreebaConfig {
   if (!apiPassword) {
     throw new AreebaConfigError(
       "GATEWAY_NOT_CONFIGURED",
-      "AREEBA_API_PASSWORD is not set",
-    );
-  }
-  if (!gatewayBaseUrl) {
-    throw new AreebaConfigError(
-      "GATEWAY_NOT_CONFIGURED",
-      "AREEBA_GATEWAY_BASE_URL is not set",
+      "AREEBA_API_PASSWORD is not set — generate it from the merchant dashboard",
     );
   }
   if (!returnUrl) {
@@ -85,6 +89,7 @@ export function loadAreebaConfig(): AreebaConfig {
     apiPassword,
     hashSecret,
     gatewayBaseUrl,
+    apiVersion,
     returnUrl,
     callbackUrl,
     currency,
