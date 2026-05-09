@@ -83,7 +83,11 @@ export async function createAreebaSession(
   }
 
   const body = {
-    apiOperation: "CREATE_CHECKOUT_SESSION",
+    // Areeba's gateway (per /api/rest/version/100) rejects
+    // CREATE_CHECKOUT_SESSION with INVALID_REQUEST on this merchant.
+    // INITIATE_CHECKOUT is accepted and returns a usable session.id which the
+    // JS SDK on the frontend feeds into Checkout.configure().
+    apiOperation: "INITIATE_CHECKOUT",
     interaction: {
       operation: "PURCHASE",
       merchant: { name: "Shefle" },
