@@ -13,8 +13,7 @@ export interface AreebaInitPayload {
 }
 
 export interface AreebaSessionResult {
-  redirectUrl: string;
-  sessionId?: string;
+  sessionId: string;
   successIndicator?: string;
   areebaOrderId?: string;
 }

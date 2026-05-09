@@ -3,6 +3,72 @@
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
+interface MpgsCheckout {
+  configure: (opts: { session: { id: string } }) => void;
+  showPaymentPage: () => void;
+}
+
+declare global {
+  interface Window {
+    Checkout?: MpgsCheckout;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    errorCallback?: (err: any) => void;
+  }
+}
+
+/**
+ * Load the MPGS Checkout JS SDK once, then resolve when window.Checkout is
+ * ready. Cached across calls so re-clicks don't re-inject the script.
+ */
+function loadCheckoutScript(src: string): Promise<MpgsCheckout> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Cannot load checkout on server"));
+  }
+  if (window.Checkout) return Promise.resolve(window.Checkout);
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[data-areeba-checkout="1"]`,
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => {
+        if (window.Checkout) resolve(window.Checkout);
+        else reject(new Error("Checkout SDK loaded but global missing"));
+      });
+      existing.addEventListener("error", () =>
+        reject(new Error("Failed to load Areeba checkout SDK")),
+      );
+
+      return;
+    }
+
+    // The MPGS SDK requires data-error and data-cancel attrs at script-tag time.
+    // data-cancel is where the user lands if they back out of the hosted page.
+    const script = document.createElement("script");
+
+    script.src = src;
+    script.async = true;
+    script.dataset.areebaCheckout = "1";
+    script.setAttribute("data-error", "errorCallback");
+    script.setAttribute(
+      "data-cancel",
+      `${window.location.origin}/subscriptions`,
+    );
+    window.errorCallback = (err) => {
+      console.error("[areeba] checkout SDK error", err);
+      toast.error("Payment could not be opened. Please try again.");
+    };
+    script.onload = () => {
+      if (window.Checkout) resolve(window.Checkout);
+      else reject(new Error("Checkout SDK loaded but global missing"));
+    };
+    script.onerror = () =>
+      reject(new Error("Failed to load Areeba checkout SDK"));
+    document.head.appendChild(script);
+  });
+}
+
 const plans = [
   {
     name: "Starter",
@@ -38,6 +104,8 @@ export default function SubscriptionsPage() {
   const handleSubscribe = async (planName: string) => {
     if (pendingPlan) return;
     setPendingPlan(planName);
+    let redirecting = false;
+
     try {
       const res = await fetch("/api/payments/initiate", {
         method: "POST",
@@ -51,6 +119,7 @@ export default function SubscriptionsPage() {
 
       if (res.status === 401) {
         toast.error("Please sign in to continue.");
+        redirecting = true;
         window.location.href = `/login?redirect=${encodeURIComponent("/subscriptions")}`;
 
         return;
@@ -68,18 +137,25 @@ export default function SubscriptionsPage() {
 
         return;
       }
-      if (!body.redirectUrl) {
-        toast.error("Payment URL missing from response.");
+      if (!body.sessionId || !body.checkoutScriptUrl) {
+        toast.error("Payment session missing from response.");
 
         return;
       }
-      window.location.href = body.redirectUrl;
+
+      const Checkout = await loadCheckoutScript(body.checkoutScriptUrl);
+
+      Checkout.configure({ session: { id: body.sessionId } });
+      redirecting = true;
+      // Hands off to Areeba's hosted form (whole-page navigation). User returns
+      // to AREEBA_RETURN_URL (?ref=<uuid>) — see /payment/result.
+      Checkout.showPaymentPage();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Network error starting payment.",
       );
     } finally {
-      setPendingPlan(null);
+      if (!redirecting) setPendingPlan(null);
     }
   };
 

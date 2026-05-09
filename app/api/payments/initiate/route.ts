@@ -6,7 +6,11 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AreebaConfigError, loadAreebaConfig } from "@/lib/areeba/config";
-import { buildInitPayload, createAreebaSession } from "@/lib/areeba/client";
+import {
+  areebaCheckoutScriptUrl,
+  buildInitPayload,
+  createAreebaSession,
+} from "@/lib/areeba/client";
 
 const initiateSchema = z.object({
   planSlug: z.enum(["starter", "growth", "enterprise"]),
@@ -138,7 +142,8 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({
-        redirectUrl: session.redirectUrl,
+        sessionId: session.sessionId,
+        checkoutScriptUrl: areebaCheckoutScriptUrl(config),
         transactionReference,
       });
     } catch (err) {

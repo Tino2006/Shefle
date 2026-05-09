@@ -19,10 +19,14 @@ function restPath(config: AreebaConfig, suffix: string): string {
   return `${config.gatewayBaseUrl}/api/rest/version/${config.apiVersion}/merchant/${config.merchantId}${suffix}`;
 }
 
-function checkoutRedirectUrl(config: AreebaConfig, sessionId: string): string {
-  // MPGS hosted-checkout entry. checkoutVersion is independent of API version
-  // and is the JS SDK build number expected by the hosted page.
-  return `${config.gatewayBaseUrl}/checkout/version/${config.apiVersion}/checkout.html?checkoutVersion=1.0.0&sessionId=${encodeURIComponent(sessionId)}`;
+/**
+ * URL of the MPGS Checkout JS SDK that the browser must load. Calling
+ * `Checkout.configure({ session: { id }})` followed by `Checkout.showPaymentPage()`
+ * is the documented entry point — there is no static "/checkout.html" URL to
+ * direct-redirect to. Returning this URL lets the frontend inject the script.
+ */
+export function areebaCheckoutScriptUrl(config: AreebaConfig): string {
+  return `${config.gatewayBaseUrl}/checkout/version/${config.apiVersion}/checkout.js`;
 }
 
 /**
@@ -53,11 +57,16 @@ export function buildInitPayload(
 }
 
 /**
- * Create a hosted-checkout session and return the URL to redirect the user to.
+ * Create a hosted-checkout session. Returns the sessionId the browser needs
+ * to feed into `Checkout.configure({ session: { id }})`.
  *
  * MPGS REST: POST {base}/api/rest/version/{ver}/merchant/{merchantId}/session
  * Auth:      HTTP Basic with username `merchant.{merchantId}` and the API password.
  * Response:  { result, session: { id, version }, successIndicator? }
+ *
+ * The frontend then loads `<gateway>/checkout/version/{ver}/checkout.js` and
+ * calls `Checkout.showPaymentPage()` — there is NO valid direct-redirect URL
+ * for hosted checkout, despite what early integrations suggest.
  *
  * If the API password is missing the call short-circuits with
  * `GATEWAY_NOT_CONFIGURED`; the route returns 501 in that case.
@@ -74,7 +83,7 @@ export async function createAreebaSession(
   }
 
   const body = {
-    apiOperation: "INITIATE_CHECKOUT",
+    apiOperation: "CREATE_CHECKOUT_SESSION",
     interaction: {
       operation: "PURCHASE",
       merchant: { name: "Shefle" },
@@ -122,7 +131,6 @@ export async function createAreebaSession(
   }
 
   return {
-    redirectUrl: checkoutRedirectUrl(config, sessionId),
     sessionId,
     successIndicator: json.successIndicator,
     areebaOrderId: json.order?.id ?? payload.transactionReference,
