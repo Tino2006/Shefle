@@ -426,6 +426,21 @@ export default function RegisterPage() {
               />
             </div>
 
+            {/* Trademark color */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  checked={isColored}
+                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
+                  type="checkbox"
+                  onChange={(e) => setIsColored(e.target.checked)}
+                />
+                <span className="text-sm font-medium text-gray-900">
+                  Trademark is colored
+                </span>
+              </label>
+            </div>
+
             {/* Upload Wordmark or Logo */}
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">
@@ -497,21 +512,6 @@ export default function RegisterPage() {
                 Maximum file size: 10MB. Accepted formats: PNG, JPG, GIF, WebP,
                 PDF
               </p>
-            </div>
-
-            {/* Trademark color */}
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  checked={isColored}
-                  className="w-4 h-4 text-red-800 focus:ring-red-800 focus:ring-2"
-                  type="checkbox"
-                  onChange={(e) => setIsColored(e.target.checked)}
-                />
-                <span className="text-sm font-medium text-gray-900">
-                  Trademark is colored
-                </span>
-              </label>
             </div>
 
             {/* Upload Business License (Company only) */}

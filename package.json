@@ -64,6 +64,7 @@
     "dotenv": "^17.3.1",
     "framer-motion": "11.18.2",
     "intl-messageformat": "10.7.16",
+    "libphonenumber-js": "^1.13.2",
     "next": "15.5.9",
     "next-themes": "0.4.6",
     "pg": "^8.18.0",

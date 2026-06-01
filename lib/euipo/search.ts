@@ -63,7 +63,7 @@ function calculateRiskLevel(
 ): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" {
   if (simFinal >= 0.8) return "HIGH";
   if (simFinal >= 0.6) return "MEDIUM";
-  if (simFinal >= 0.4) return "LOW";
+  if (simFinal >= 0.45) return "LOW";
 
   return "VERY_LOW";
 }
@@ -183,7 +183,7 @@ export async function searchEUIPO(
     }
   }
 
-  return Array.from(unique.values()).sort(
-    (a, b) => b.similarity_score - a.similarity_score,
-  );
+  return Array.from(unique.values())
+    .filter((r) => r.similarity_score >= 0.45)
+    .sort((a, b) => b.similarity_score - a.similarity_score);
 }

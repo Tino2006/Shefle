@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  generateImageEmbedding,
-  generateImageEmbeddingFromUrl,
-  cosineSimilarity,
+  generateMultiVariantEmbeddings,
+  generateMultiVariantEmbeddingsFromUrl,
+  maxCosineSimilarity,
 } from "@/lib/imageEmbeddings";
 import {
   visualMatchDisplayPercent,
@@ -113,12 +113,15 @@ export async function POST(request: NextRequest) {
     );
     const startTime = Date.now();
 
-    // Generate embedding for uploaded image
-    console.log("[Logo Similarity] Generating embedding for uploaded image...");
-    const uploadedEmbedding = await generateImageEmbedding(uploadedImageBuffer);
+    // Generate multi-variant embeddings for uploaded image
+    console.log(
+      "[Logo Similarity] Generating multi-variant embeddings for uploaded image...",
+    );
+    const uploadedEmbeddings =
+      await generateMultiVariantEmbeddings(uploadedImageBuffer);
 
     console.log(
-      `[Logo Similarity] Uploaded image embedding: ${uploadedEmbedding.length}D`,
+      `[Logo Similarity] Uploaded image: ${uploadedEmbeddings.length} variants × ${uploadedEmbeddings[0].length}D`,
     );
 
     // Fetch candidate images and generate embeddings
@@ -132,12 +135,11 @@ export async function POST(request: NextRequest) {
           `[Logo Similarity] Fetching candidate: ${candidate.url.substring(0, 80)}...`,
         );
 
-        const candidateEmbedding = await generateImageEmbeddingFromUrl(
-          candidate.url,
-        );
-        const similarity = cosineSimilarity(
-          uploadedEmbedding,
-          candidateEmbedding,
+        const candidateEmbeddings =
+          await generateMultiVariantEmbeddingsFromUrl(candidate.url);
+        const similarity = maxCosineSimilarity(
+          uploadedEmbeddings,
+          candidateEmbeddings,
         );
 
         results.push({

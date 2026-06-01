@@ -19,9 +19,7 @@ const menuItems = [
   { label: "Home", href: "/" },
   { label: "Portfolio", href: "/portfolio" },
   { label: "Monitor", href: "/monitor" },
-  { label: "Register", href: "/register" },
   { label: "Contact Us", href: "/contact" },
-  { label: "Profile", href: "/profile" },
   { label: "Subscriptions", href: "/subscriptions" },
 ];
 
@@ -257,28 +255,46 @@ export const MobileDrawer = ({
                 </ul>
               </nav>
 
-              <div className="px-5 py-5 sm:px-6">
+              <div className="space-y-3 px-5 py-5 sm:px-6">
                 {isAuthed === null ? (
                   <div
                     aria-hidden
                     className="h-[52px] w-full animate-pulse rounded-xl bg-gray-100 sm:h-14"
                   />
                 ) : isAuthed ? (
-                  <button
-                    className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-base font-semibold text-red-800 transition-colors hover:bg-red-100 active:bg-red-200 sm:py-4 sm:text-[17px]"
-                    type="button"
-                    onClick={handleLogout}
-                  >
-                    Log out
-                  </button>
+                  <>
+                    <Link
+                      className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-base font-semibold text-gray-900 transition-colors hover:bg-gray-50 active:bg-gray-100 sm:py-4 sm:text-[17px]"
+                      href="/profile"
+                      onClick={onClose}
+                    >
+                      Profile
+                    </Link>
+                    <button
+                      className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-base font-semibold text-red-800 transition-colors hover:bg-red-100 active:bg-red-200 sm:py-4 sm:text-[17px]"
+                      type="button"
+                      onClick={handleLogout}
+                    >
+                      Log out
+                    </button>
+                  </>
                 ) : (
-                  <Link
-                    className="flex w-full items-center justify-center rounded-xl border border-red-800 bg-red-800 px-4 py-3.5 text-base font-semibold text-white transition-colors hover:bg-red-900 active:bg-red-950 sm:py-4 sm:text-[17px]"
-                    href={loginHref}
-                    onClick={onClose}
-                  >
-                    Log in
-                  </Link>
+                  <>
+                    <Link
+                      className="flex w-full items-center justify-center rounded-xl border border-red-800 bg-red-800 px-4 py-3.5 text-base font-semibold text-white transition-colors hover:bg-red-900 active:bg-red-950 sm:py-4 sm:text-[17px]"
+                      href={loginHref}
+                      onClick={onClose}
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3.5 text-base font-semibold text-gray-900 transition-colors hover:bg-gray-50 active:bg-gray-100 sm:py-4 sm:text-[17px]"
+                      href="/register"
+                      onClick={onClose}
+                    >
+                      Register
+                    </Link>
+                  </>
                 )}
               </div>
 

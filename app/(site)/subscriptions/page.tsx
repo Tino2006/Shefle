@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
+import { CurrentPlanPanel } from "@/components/current-plan-panel";
+
 interface MpgsCheckout {
   configure: (opts: { session: { id: string } }) => void;
   showPaymentPage: () => void;
@@ -190,6 +192,9 @@ export default function SubscriptionsPage() {
           </p>
         </div>
 
+        {/* Current-plan panel (rendered only for logged-in users) */}
+        <CurrentPlanPanel />
+
         {/* Billing Toggle */}
         <div className="mb-10 flex flex-col items-center gap-3">
           <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
@@ -222,14 +227,14 @@ export default function SubscriptionsPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto pt-6 pb-10">
           {displayedPlans.map((plan, index) => (
             <div
               key={index}
-              className={`bg-white rounded-2xl p-8 flex flex-col ${
+              className={`group relative bg-white rounded-2xl p-8 flex flex-col border-2 transform-gpu will-change-transform transition-[transform,box-shadow,border-color] duration-300 ease-out cursor-pointer hover:-translate-y-2 hover:scale-[1.04] hover:shadow-2xl hover:border-red-800 hover:z-10 ${
                 plan.highlighted
-                  ? "border-2 border-red-800 shadow-lg"
-                  : "border border-gray-200 shadow-sm"
+                  ? "border-red-800 shadow-xl scale-[1.02]"
+                  : "border-gray-200 shadow-sm"
               }`}
             >
               <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">

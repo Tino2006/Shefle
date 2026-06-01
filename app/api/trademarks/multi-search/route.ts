@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
           CASE
             WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
             ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
-          END >= 0.4
+          END >= 0.45
         ORDER BY rank DESC, sim_final DESC
         LIMIT $2
       `;
@@ -356,7 +356,7 @@ function calculateRiskLevel(
 ): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" {
   if (simFinal >= 0.8) return "HIGH";
   if (simFinal >= 0.6) return "MEDIUM";
-  if (simFinal >= 0.4) return "LOW";
+  if (simFinal >= 0.45) return "LOW";
 
   return "VERY_LOW";
 }

@@ -1,9 +1,9 @@
 import { query, queryOne, queryRows } from "@/lib/db/postgres";
 import { detectImageEntities } from "@/lib/googleVision";
 import {
-  generateImageEmbedding,
-  generateImageEmbeddingFromUrl,
-  cosineSimilarity,
+  generateMultiVariantEmbeddings,
+  generateMultiVariantEmbeddingsFromUrl,
+  maxCosineSimilarity,
 } from "@/lib/imageEmbeddings";
 import {
   visualMatchDisplayPercent,
@@ -221,16 +221,16 @@ export async function runWatchlistCheck(
       }
 
       if (candidates.length > 0) {
-        const uploadedEmbedding = await generateImageEmbedding(imageBuffer);
+        const uploadedEmbeddings =
+          await generateMultiVariantEmbeddings(imageBuffer);
 
         for (const candidate of candidates.slice(0, 20)) {
           try {
-            const candidateEmbedding = await generateImageEmbeddingFromUrl(
-              candidate.url,
-            );
-            const similarity = cosineSimilarity(
-              uploadedEmbedding,
-              candidateEmbedding,
+            const candidateEmbeddings =
+              await generateMultiVariantEmbeddingsFromUrl(candidate.url);
+            const similarity = maxCosineSimilarity(
+              uploadedEmbeddings,
+              candidateEmbeddings,
             );
 
             if (

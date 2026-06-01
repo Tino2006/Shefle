@@ -71,3 +71,42 @@ export async function createPreprocessingVariants(
 
   return { normal, inverted };
 }
+
+const CLIP_TARGET_SIZE = 384;
+
+/**
+ * Preprocess image for CLIP embedding generation.
+ *
+ * Normalizes away cosmetic differences (background, padding, aspect ratio)
+ * that drag down cosine similarity between variants of the same logo.
+ */
+export async function preprocessImageForCLIP(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .resize(CLIP_TARGET_SIZE, CLIP_TARGET_SIZE, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255 },
+    })
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Same as preprocessImageForCLIP but converts to grayscale.
+ * Captures structural/shape similarity without color influence.
+ */
+export async function preprocessImageForCLIPGrayscale(
+  buffer: Buffer,
+): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .resize(CLIP_TARGET_SIZE, CLIP_TARGET_SIZE, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255 },
+    })
+    .grayscale()
+    .png()
+    .toBuffer();
+}

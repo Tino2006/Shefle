@@ -2,6 +2,7 @@ import type { ReferredUserSummary } from "@/lib/types/database";
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { isValidPhoneNumber } from "libphonenumber-js";
 
 import { ensureProfileIfMissing } from "@/lib/ensure-profile";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,20 @@ const updateProfileSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   companyName: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (val === undefined || val === null || val.trim() === "") return true;
+
+        return isValidPhoneNumber(val);
+      },
+      {
+        message:
+          "Invalid phone number. Use international format (e.g. +1 415 555 0132).",
+      },
+    ),
   country: z.string().optional(),
 });
 

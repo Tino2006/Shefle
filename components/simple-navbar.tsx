@@ -14,9 +14,7 @@ const navLinks = [
   { label: "Home", href: "/" },
   { label: "Portfolio", href: "/portfolio" },
   { label: "Monitor", href: "/monitor" },
-  { label: "Register", href: "/register" },
   { label: "Contact Us", href: "/contact" },
-  { label: "Profile", href: "/profile" },
   { label: "Subscriptions", href: "/subscriptions" },
 ];
 
@@ -101,72 +99,95 @@ export const SimpleNavbar = () => {
               })}
             </div>
 
-            {/* Right side: Profile + Log in / Log out (desktop only) */}
+            {/* Right side: auth-dependent buttons (desktop only) */}
             <div className="hidden lg:flex items-center gap-4">
               <div className="w-px h-6 bg-gray-300" />
-              <Link
-                className="flex items-center gap-2 px-5 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
-                href={isAuthed === false ? loginHref : "/profile"}
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    clipRule="evenodd"
-                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                    fillRule="evenodd"
-                  />
-                </svg>
-                <span className="text-[15px] font-medium">Profile</span>
-              </Link>
               {isAuthed === null ? (
                 <div
                   aria-hidden
-                  className="h-10 w-[118px] animate-pulse rounded-full bg-gray-100"
+                  className="h-10 w-[260px] animate-pulse rounded-full bg-gray-100"
                 />
               ) : isAuthed ? (
-                <button
-                  className="flex items-center gap-2 px-5 py-2.5 text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-colors"
-                  type="button"
-                  onClick={handleLogout}
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <>
+                  <Link
+                    className="flex items-center gap-2 px-5 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+                    href="/profile"
                   >
-                    <path
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                  <span className="text-[15px] font-medium">Log out</span>
-                </button>
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        clipRule="evenodd"
+                        d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                        fillRule="evenodd"
+                      />
+                    </svg>
+                    <span className="text-[15px] font-medium">Profile</span>
+                  </Link>
+                  <button
+                    className="flex items-center gap-2 px-5 py-2.5 text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-colors"
+                    type="button"
+                    onClick={handleLogout}
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="text-[15px] font-medium">Log out</span>
+                  </button>
+                </>
               ) : (
-                <Link
-                  className="flex items-center gap-2 px-5 py-2.5 text-white bg-red-800 border border-red-800 rounded-full hover:bg-red-900 transition-colors"
-                  href={loginHref}
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <>
+                  <Link
+                    className="flex items-center gap-2 px-5 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+                    href="/register"
                   >
-                    <path
-                      d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                  <span className="text-[15px] font-medium">Log in</span>
-                </Link>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M20 8v6M23 11h-6M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="text-[15px] font-medium">Register</span>
+                  </Link>
+                  <Link
+                    className="flex items-center gap-2 px-5 py-2.5 text-white bg-red-800 border border-red-800 rounded-full hover:bg-red-900 transition-colors"
+                    href={loginHref}
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="text-[15px] font-medium">Log in</span>
+                  </Link>
+                </>
               )}
             </div>
           </div>

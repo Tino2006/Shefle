@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { isValidPhoneNumber } from "libphonenumber-js";
 
 import { getCountryOptions, normalizeCountryForSelect } from "@/lib/countries";
 
@@ -29,6 +30,8 @@ export default function ProfilePage() {
     country: "",
     company: "",
   });
+
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -94,14 +97,42 @@ export default function ProfilePage() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
+    const { name, value } = e.target;
+
+    if (name === "phone") {
+      // Allow only digits, +, spaces, dashes, and parentheses
+      const cleaned = value.replace(/[^\d+\-\s()]/g, "");
+
+      setFormData({ ...formData, phone: cleaned });
+
+      // Clear inline error as user types; we'll re-validate on submit
+      if (phoneError) setPhoneError(null);
+
+      return;
+    }
+
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate phone (allow empty; reject anything else that doesn't parse)
+    const phone = formData.phone.trim();
+
+    if (phone !== "" && !isValidPhoneNumber(phone)) {
+      setPhoneError(
+        "Please enter a valid phone number in international format (e.g. +1 415 555 0132).",
+      );
+      toast.error("Invalid phone number");
+
+      return;
+    }
+    setPhoneError(null);
+
     setIsSaving(true);
 
     try {
@@ -336,14 +367,46 @@ export default function ProfilePage() {
                       Phone Number
                     </label>
                     <input
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-800/20 focus:border-red-800 focus:shadow-sm hover:border-gray-300"
+                      aria-describedby={
+                        phoneError ? "phone-error" : "phone-help"
+                      }
+                      aria-invalid={phoneError ? true : undefined}
+                      className={`w-full px-4 py-3 border rounded-xl text-gray-900 placeholder-gray-400 bg-white transition-all duration-200 focus:outline-none focus:ring-2 focus:shadow-sm hover:border-gray-300 ${
+                        phoneError
+                          ? "border-red-500 focus:ring-red-500/20 focus:border-red-600"
+                          : "border-gray-200 focus:ring-red-800/20 focus:border-red-800"
+                      }`}
                       id="phone"
+                      inputMode="tel"
                       name="phone"
-                      placeholder="Phone number"
+                      placeholder="+1 415 555 0132"
                       type="tel"
                       value={formData.phone}
+                      onBlur={() => {
+                        const phone = formData.phone.trim();
+
+                        if (phone !== "" && !isValidPhoneNumber(phone)) {
+                          setPhoneError(
+                            "Please enter a valid phone number in international format (e.g. +1 415 555 0132).",
+                          );
+                        } else {
+                          setPhoneError(null);
+                        }
+                      }}
                       onChange={handleChange}
                     />
+                    {phoneError ? (
+                      <p
+                        className="text-xs text-red-600 mt-1"
+                        id="phone-error"
+                      >
+                        {phoneError}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1" id="phone-help">
+                        Include country code, e.g. +1 415 555 0132.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label
@@ -565,43 +628,6 @@ export default function ProfilePage() {
               </div>
             </motion.div>
 
-            {/* Notifications Card */}
-            <motion.div
-              animate={fadeInUp.animate}
-              className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer"
-              initial={fadeInUp.initial}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              whileHover={!prefersReducedMotion ? { y: -4, scale: 1.02 } : {}}
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                  <svg
-                    className="w-6 h-6 text-red-800"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Notifications
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Manage your email and alert preferences
-                  </p>
-                  <button className="text-sm font-medium text-red-800 hover:text-red-900 transition-colors">
-                    Manage preferences →
-                  </button>
-                </div>
-              </div>
-            </motion.div>
           </div>
         </div>
       </div>

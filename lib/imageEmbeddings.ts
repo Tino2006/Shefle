@@ -8,6 +8,11 @@ import {
   RawImage,
 } from "@xenova/transformers";
 
+import {
+  preprocessImageForCLIP,
+  preprocessImageForCLIPGrayscale,
+} from "@/lib/imagePreprocessing";
+
 /**
  * Image embedding service using CLIP (Contrastive Language-Image Pre-training)
  * Generates 512-dimensional embeddings for visual similarity comparison
@@ -135,4 +140,60 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   }
 
   return dotProduct / (normA * normB);
+}
+
+/**
+ * Generate multiple CLIP embeddings from preprocessed variants of an image.
+ * Returns [color-normalized, grayscale-normalized] embeddings.
+ */
+export async function generateMultiVariantEmbeddings(
+  buffer: Buffer,
+): Promise<Float32Array[]> {
+  const [colorBuf, grayBuf] = await Promise.all([
+    preprocessImageForCLIP(buffer),
+    preprocessImageForCLIPGrayscale(buffer),
+  ]);
+
+  const colorEmbed = await generateImageEmbedding(colorBuf);
+  const grayEmbed = await generateImageEmbedding(grayBuf);
+
+  return [colorEmbed, grayEmbed];
+}
+
+/**
+ * Generate multi-variant embeddings from an image URL.
+ */
+export async function generateMultiVariantEmbeddingsFromUrl(
+  imageUrl: string,
+): Promise<Float32Array[]> {
+  const response = await fetch(imageUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  return generateMultiVariantEmbeddings(buffer);
+}
+
+/**
+ * Compare two sets of embedding variants and return the maximum similarity.
+ * Compares all pairs (N×M) and picks the best match.
+ */
+export function maxCosineSimilarity(
+  embeddingsA: Float32Array[],
+  embeddingsB: Float32Array[],
+): number {
+  let best = -1;
+
+  for (const a of embeddingsA) {
+    for (const b of embeddingsB) {
+      const sim = cosineSimilarity(a, b);
+
+      if (sim > best) best = sim;
+    }
+  }
+
+  return best;
 }

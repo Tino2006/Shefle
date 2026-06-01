@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db/postgres";
 import { searchIPAustralia } from "@/lib/ipaustralia/search";
 import { searchEUIPO } from "@/lib/euipo/search";
+import { createClient } from "@/lib/supabase/server";
+import { checkQuota, incrementUsage } from "@/lib/subscriptions/usage";
 
 /**
  * USPTO Trademark Search API
@@ -123,6 +125,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Subscription quota: if the user is logged in, gate searches by their
+    // plan's searches_limit. Anonymous callers fall through (public search
+    // remains unmetered for now).
+    let authedUserId: string | null = null;
+
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        authedUserId = user.id;
+        const quota = await checkQuota(
+          supabase,
+          user.id,
+          "searches_used",
+          "searches_limit",
+        );
+
+        if (!quota.allowed && quota.reason === "limit_reached") {
+          return NextResponse.json(
+            {
+              error: "search_limit_reached",
+              message:
+                "You've reached your monthly search limit. Upgrade your plan to continue searching.",
+              limit: quota.limit,
+              used: quota.used,
+              remaining: 0,
+            },
+            { status: 403 },
+          );
+        }
+      }
+    } catch (quotaErr) {
+      // Never block search on a quota-system error — log and continue.
+      console.error("[search] quota check failed:", quotaErr);
+    }
+
     // Hybrid similarity retrieval/ranking:
     // Stage 1: lexical + phonetic + compound-word candidate retrieval
     // Stage 2: weighted multi-signal score via trademark_similarity_v2()
@@ -222,7 +263,7 @@ export async function GET(request: NextRequest) {
         CASE
           WHEN LOWER(unaccent(c.mark_text)) = LOWER(unaccent($1)) THEN 1.0
           ELSE trademark_similarity_v2($1, c.mark_text, c.trgm_score::numeric)
-        END >= 0.4
+        END >= 0.45
       ORDER BY rank DESC, sim_final DESC
       LIMIT $2
     `;
@@ -240,7 +281,7 @@ export async function GET(request: NextRequest) {
     ): "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" => {
       if (simFinal >= 0.8) return "HIGH";
       if (simFinal >= 0.6) return "MEDIUM";
-      if (simFinal >= 0.4) return "LOW";
+      if (simFinal >= 0.45) return "LOW";
 
       return "VERY_LOW";
     };
@@ -331,6 +372,12 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.similarity_score - a.similarity_score)
       .slice(0, limit);
 
+    // Count this as one search against the user's plan (fire-and-forget;
+    // failures are logged inside incrementUsage and never block the response).
+    if (authedUserId) {
+      void incrementUsage(authedUserId, "searches_used", 1);
+    }
+
     // Return response
     const response: SearchResponse = {
       query: query,
@@ -342,7 +389,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        // Authed searches must hit the function every time so usage is counted.
+        // Anonymous searches can still be CDN-cached.
+        "Cache-Control": authedUserId
+          ? "private, no-store"
+          : "public, s-maxage=300, stale-while-revalidate=600",
       },
     });
   } catch (error) {

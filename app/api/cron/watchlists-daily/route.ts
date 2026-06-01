@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db/postgres";
 import { runWatchlistCheck } from "@/lib/watchlists/runWatchlistCheck";
 import { sendMonitorAlertEmail } from "@/lib/notifications/sendMonitorAlertEmail";
+import { incrementUsage } from "@/lib/subscriptions/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -100,6 +101,9 @@ export async function GET(request: NextRequest) {
         items,
       });
       emailsSent++;
+
+      // Count one notification against this user's plan (fire-and-forget).
+      void incrementUsage(userId, "notifications_sent", 1);
     }
 
     return NextResponse.json({

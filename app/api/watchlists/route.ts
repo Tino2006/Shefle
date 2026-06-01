@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { queryOne, queryRows } from "@/lib/db/postgres";
+import {
+  getActiveSubscription,
+  incrementUsage,
+} from "@/lib/subscriptions/usage";
 
 /**
  * Watchlist API
@@ -147,6 +151,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Subscription quota: cap total *currently active* monitors by plan's
+    // monitors_limit. We compare the live count of watchlists owned by this
+    // user against the plan limit (NULL = unlimited).
+    try {
+      const subscription = await getActiveSubscription(supabase, user.id);
+
+      if (subscription && subscription.plan.monitors_limit !== null) {
+        const countRow = await queryOne<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM public.watchlists WHERE user_id = $1`,
+          [user.id],
+        );
+        const activeCount = Number(countRow?.count ?? 0);
+
+        if (activeCount >= subscription.plan.monitors_limit) {
+          return NextResponse.json(
+            {
+              error: "monitor_limit_reached",
+              message:
+                "You've reached your monitor limit on the current plan. Upgrade to add more.",
+              limit: subscription.plan.monitors_limit,
+              used: activeCount,
+            },
+            { status: 403 },
+          );
+        }
+      }
+    } catch (quotaErr) {
+      console.error("[watchlists] quota check failed:", quotaErr);
+    }
+
     if (portfolio_trademark_id) {
       const portfolioTrademark = await queryOne<PortfolioTrademarkLogoRow>(
         `
@@ -218,6 +252,8 @@ export async function POST(request: NextRequest) {
     if (!result) {
       throw new Error("Failed to create watchlist");
     }
+
+    void incrementUsage(user.id, "monitors_used", 1);
 
     return NextResponse.json(
       {
