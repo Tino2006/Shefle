@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 
 import { CurrentPlanPanel } from "@/components/current-plan-panel";
@@ -13,7 +14,7 @@ interface MpgsCheckout {
 declare global {
   interface Window {
     Checkout?: MpgsCheckout;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     errorCallback?: (err: any) => void;
   }
 }
@@ -71,7 +72,15 @@ function loadCheckoutScript(src: string): Promise<MpgsCheckout> {
   });
 }
 
-const plans = [
+type Plan = {
+  name: string;
+  monthlyPrice?: number;
+  features: string[];
+  highlighted: boolean;
+  custom?: boolean;
+};
+
+const plans: Plan[] = [
   {
     name: "Starter",
     monthlyPrice: 100,
@@ -95,13 +104,102 @@ const plans = [
     ],
     highlighted: false,
   },
+  {
+    name: "Custom",
+    custom: true,
+    features: [
+      "Tailored search & monitor limits",
+      "Dedicated support",
+      "Custom integrations",
+      "Volume pricing",
+    ],
+    highlighted: false,
+  },
 ];
+
+type CurrentSubscription = {
+  subscriptionId: string;
+  planName: string;
+  planPrice: number;
+};
 
 export default function SubscriptionsPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
     "monthly",
   );
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [current, setCurrent] = useState<CurrentSubscription | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  // Bumped after a cancel/upgrade to remount <CurrentPlanPanel /> so it refetches.
+  const [panelKey, setPanelKey] = useState(0);
+
+  const loadCurrent = useCallback(async () => {
+    try {
+      const res = await fetch("/api/subscriptions/current", {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        setCurrent(null);
+
+        return;
+      }
+
+      const body = await res.json();
+
+      if (body?.subscription?.plan) {
+        setCurrent({
+          subscriptionId: body.subscription.id,
+          planName: body.subscription.plan.name,
+          planPrice: Number(body.subscription.plan.price),
+        });
+      } else {
+        setCurrent(null);
+      }
+    } catch (err) {
+      console.error("[subscriptions] load current failed:", err);
+      setCurrent(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCurrent();
+  }, [loadCurrent]);
+
+  const handleCancel = async () => {
+    if (!current || cancelling) return;
+    const confirmed = window.confirm(
+      `Cancel your ${current.planName} plan? You'll keep access until the end of your current billing period.`,
+    );
+
+    if (!confirmed) return;
+    setCancelling(true);
+
+    try {
+      const res = await fetch(
+        `/api/subscriptions/${current.subscriptionId}/cancel`,
+        { method: "POST" },
+      );
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        toast.error(body.error || "Could not cancel subscription.");
+
+        return;
+      }
+
+      toast.success("Cancellation scheduled.");
+      await loadCurrent();
+      setPanelKey((k) => k + 1);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Network error cancelling.",
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const handleSubscribe = async (planName: string) => {
     if (pendingPlan) return;
@@ -163,6 +261,10 @@ export default function SubscriptionsPage() {
 
   const displayedPlans = useMemo(() => {
     return plans.map((plan) => {
+      if (plan.custom || plan.monthlyPrice == null) {
+        return { ...plan, displayPrice: null, yearlyTotal: null };
+      }
+
       const yearlyMonthlyEquivalent = Math.round(plan.monthlyPrice * 0.7);
       const yearlyTotal = yearlyMonthlyEquivalent * 12;
       const displayPrice =
@@ -193,7 +295,7 @@ export default function SubscriptionsPage() {
         </div>
 
         {/* Current-plan panel (rendered only for logged-in users) */}
-        <CurrentPlanPanel />
+        <CurrentPlanPanel key={panelKey} />
 
         {/* Billing Toggle */}
         <div className="mb-10 flex flex-col items-center gap-3">
@@ -227,73 +329,133 @@ export default function SubscriptionsPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto pt-6 pb-10">
-          {displayedPlans.map((plan, index) => (
-            <div
-              key={index}
-              className={`group relative bg-white rounded-2xl p-8 flex flex-col border-2 transform-gpu will-change-transform transition-[transform,box-shadow,border-color] duration-300 ease-out cursor-pointer hover:-translate-y-2 hover:scale-[1.04] hover:shadow-2xl hover:border-red-800 hover:z-10 ${
-                plan.highlighted
-                  ? "border-red-800 shadow-xl scale-[1.02]"
-                  : "border-gray-200 shadow-sm"
-              }`}
-            >
-              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                {plan.name}
-              </p>
-              {/* Price */}
-              <div className="mb-8">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-bold text-gray-900">
-                    ${plan.displayPrice}
-                  </span>
-                  <span className="text-xl text-gray-500">/mo</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto pt-6 pb-10">
+          {displayedPlans.map((plan, index) => {
+            // Highlight follows the cursor: a card is active when it's hovered,
+            // or — when nothing is hovered — when it's the default featured plan.
+            const isActive =
+              hoveredIndex === index ||
+              (hoveredIndex === null && plan.highlighted);
+
+            const planPrice = plan.monthlyPrice ?? 0;
+            const isCurrent =
+              current != null &&
+              !plan.custom &&
+              current.planName.toLowerCase() === plan.name.toLowerCase();
+            const isUpgrade =
+              current != null && !plan.custom && planPrice > current.planPrice;
+            const isLower =
+              current != null && !plan.custom && planPrice < current.planPrice;
+
+            return (
+              <div
+                key={index}
+                className={`group relative bg-white rounded-2xl p-8 flex flex-col border-2 transform-gpu will-change-transform transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-2 hover:scale-[1.04] hover:shadow-2xl hover:border-red-800 hover:z-10 ${
+                  isActive
+                    ? "border-red-800 shadow-xl scale-[1.02]"
+                    : "border-gray-200 shadow-sm"
+                }`}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
+                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                  {plan.name}
+                </p>
+                {/* Price */}
+                <div className="mb-8">
+                  {plan.custom ? (
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-bold text-gray-900">
+                        Let&apos;s talk
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-5xl font-bold text-gray-900">
+                          ${plan.displayPrice}
+                        </span>
+                        <span className="text-xl text-gray-500">/mo</span>
+                      </div>
+                      {billingCycle === "yearly" && (
+                        <p className="mt-2 text-sm text-gray-600">
+                          Billed yearly at ${plan.yearlyTotal}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
-                {billingCycle === "yearly" && (
-                  <p className="mt-2 text-sm text-gray-600">
-                    Billed yearly at ${plan.yearlyTotal}
-                  </p>
+
+                {/* Features List */}
+                <div className="space-y-4 mb-8 flex-1">
+                  {plan.features.map((feature, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-800 flex items-center justify-center mt-0.5">
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            clipRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            fillRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <span className="text-[15px] text-gray-900 leading-relaxed">
+                        {feature}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CTA */}
+                {plan.custom ? (
+                  <Link
+                    className="w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block bg-red-800 text-white hover:bg-red-900"
+                    href="/contact"
+                  >
+                    Contact us
+                  </Link>
+                ) : isCurrent ? (
+                  <button
+                    className="w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block border-2 border-red-800 text-red-800 bg-white hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={cancelling}
+                    type="button"
+                    onClick={handleCancel}
+                  >
+                    {cancelling ? "Cancelling…" : "Cancel"}
+                  </button>
+                ) : isLower ? (
+                  <button
+                    disabled
+                    className="w-full px-6 py-3 text-base font-semibold rounded-lg text-center block bg-gray-100 text-gray-400 cursor-not-allowed"
+                    type="button"
+                  >
+                    Current plan or lower
+                  </button>
+                ) : (
+                  <button
+                    className={`w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isActive
+                        ? "bg-red-800 text-white hover:bg-red-900"
+                        : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                    }`}
+                    disabled={pendingPlan !== null}
+                    type="button"
+                    onClick={() => handleSubscribe(plan.name)}
+                  >
+                    {pendingPlan === plan.name
+                      ? "Redirecting…"
+                      : isUpgrade
+                        ? "Upgrade"
+                        : "Buy"}
+                  </button>
                 )}
               </div>
-
-              {/* Features List */}
-              <div className="space-y-4 mb-8 flex-1">
-                {plan.features.map((feature, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-800 flex items-center justify-center mt-0.5">
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          clipRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          fillRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[15px] text-gray-900 leading-relaxed">
-                      {feature}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Buy Button */}
-              <button
-                className={`w-full px-6 py-3 text-base font-semibold rounded-lg transition-colors text-center block disabled:opacity-60 disabled:cursor-not-allowed ${
-                  plan.highlighted
-                    ? "bg-red-800 text-white hover:bg-red-900"
-                    : "bg-gray-200 text-gray-900 hover:bg-gray-300"
-                }`}
-                disabled={pendingPlan !== null}
-                type="button"
-                onClick={() => handleSubscribe(plan.name)}
-              >
-                {pendingPlan === plan.name ? "Redirecting…" : "Buy"}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

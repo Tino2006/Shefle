@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActiveSubscription } from "@/lib/subscriptions/usage";
 import { AreebaConfigError, loadAreebaConfig } from "@/lib/areeba/config";
 import {
   areebaCheckoutScriptUrl,
@@ -78,6 +79,44 @@ export async function POST(request: Request) {
     const currency = (plan.currency as string | null)?.toUpperCase() || "USD";
     const transactionReference = randomUUID();
 
+    // Upgrade detection. If the user already has an active subscription, this is
+    // an upgrade: charge only the price difference for the selected billing cycle
+    // and link the transaction to the existing subscription so reconcile swaps
+    // the tier in place (keeping the current period end). The difference is
+    // computed server-side; the client only ever sends planSlug + billingCycle.
+    // Note: the difference is computed for the currently-selected toggle cycle —
+    // switching billing cycle during an upgrade is out of scope.
+    let chargeAmount = amount;
+    let upgradeSubscriptionId: string | null = null;
+    const currentSub = await getActiveSubscription(supabase, user.id);
+
+    if (currentSub) {
+      if (currentSub.plan_id === plan.id) {
+        return NextResponse.json(
+          { error: "You are already on this plan." },
+          { status: 400 },
+        );
+      }
+
+      const currentAmount = computeAmount(
+        Number(currentSub.plan.price),
+        billingCycle,
+      );
+
+      if (amount <= currentAmount) {
+        return NextResponse.json(
+          {
+            error:
+              "Downgrades are not supported. Choose a higher plan to upgrade.",
+          },
+          { status: 400 },
+        );
+      }
+
+      chargeAmount = amount - currentAmount;
+      upgradeSubscriptionId = currentSub.id;
+    }
+
     // Load Areeba config first so a misconfigured environment fails before we
     // create a stranded transaction row.
     let config;
@@ -101,14 +140,20 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     const { error: insertError } = await admin.from("transactions").insert({
       user_id: user.id,
-      amount,
+      amount: chargeAmount,
       currency,
       status: "pending",
       provider: "areeba",
       transaction_reference: transactionReference,
       plan_id: plan.id,
       billing_cycle: billingCycle,
-      raw_request: { planSlug, billingCycle, planId: plan.id },
+      subscription_id: upgradeSubscriptionId,
+      raw_request: {
+        planSlug,
+        billingCycle,
+        planId: plan.id,
+        upgrade: upgradeSubscriptionId != null,
+      },
     });
 
     if (insertError) {
@@ -125,9 +170,11 @@ export async function POST(request: Request) {
 
     const payload = buildInitPayload(config, {
       transactionReference,
-      amount,
+      amount: chargeAmount,
       currency,
-      description: `${plan.name} (${billingCycle})`,
+      description: upgradeSubscriptionId
+        ? `Upgrade to ${plan.name} (${billingCycle})`
+        : `${plan.name} (${billingCycle})`,
     });
 
     try {

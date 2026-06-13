@@ -195,6 +195,25 @@ export async function reconcileTransaction(
       } else if (sub) {
         subscriptionId = sub.id;
       }
+    } else if (subscriptionId && tx.plan_id) {
+      // Upgrade in place: the transaction was linked to an existing subscription
+      // at initiate time and charged only the price difference. Swap the tier
+      // now, leaving current_period_start/end untouched so the user keeps the
+      // period they already paid for.
+      const { error: upgradeError } = await admin
+        .from("subscriptions")
+        .update({
+          plan_id: tx.plan_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscriptionId)
+        .neq("plan_id", tx.plan_id);
+      if (upgradeError) {
+        console.error(
+          "[areeba/reconcile] failed to apply upgrade:",
+          upgradeError.message,
+        );
+      }
     }
 
     await admin
